@@ -19,6 +19,13 @@ import AgencyInfoModal from './components/AgencyInfoModal';
 export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [activeView, setActiveView] = useState<'client' | 'admin' | 'fresha'>('client');
+  const [visualTheme, setVisualTheme] = useState<'color' | 'mono'>(() => {
+    try {
+      return window.localStorage.getItem('maria-visual-theme') === 'mono' ? 'mono' : 'color';
+    } catch {
+      return 'color';
+    }
+  });
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isAdminGateOpen, setIsAdminGateOpen] = useState(false);
@@ -28,6 +35,15 @@ export default function App() {
   useEffect(() => {
     console.log("State synchronized: ", appointments.length, "appointments loaded.");
   }, [appointments]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = visualTheme;
+    try {
+      window.localStorage.setItem('maria-visual-theme', visualTheme);
+    } catch {
+      // Ignore private browsing/storage restrictions; the switch still works in-session.
+    }
+  }, [visualTheme]);
 
   // Handler to register a new appointment requested by client or manager
   const handleAddNewAppointment = (
@@ -87,7 +103,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative font-sans bg-[#fff8f8] text-stone-800 antialiased min-h-screen">
+    <div className="theme-shell relative font-sans bg-[#fff8f8] text-stone-800 antialiased min-h-screen">
       
       {/* Dynamic View Panel Router with fade-in animation */}
       <AnimatePresence mode="wait">
@@ -103,6 +119,8 @@ export default function App() {
             <ClientPortalView 
               onOpenBooking={() => setIsBookingOpen(true)}
               onReadArticle={handleReadArticle}
+              visualTheme={visualTheme}
+              onToggleVisualTheme={() => setVisualTheme(prev => prev === 'color' ? 'mono' : 'color')}
             />
           ) : activeView === 'admin' ? (
             <DashboardView
@@ -122,7 +140,6 @@ export default function App() {
 
       {/* Floating Global Role/View Selector Trigger HUD (Bottom Right) */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2.5 pointer-events-none">
-        
         {/* Helper guide alert bubble */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}

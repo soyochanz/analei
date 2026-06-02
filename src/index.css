@@ -31,6 +31,37 @@
   --color-surface-container-lowest: rgba(255, 248, 248, 0.9);
 }
 
+html[data-theme="mono"] {
+  --mono-rose-50: #fff7f8;
+  --mono-rose-100: #fdecef;
+  --mono-rose-200: #f8d8df;
+  --mono-rose-ink: #8f4d5d;
+
+  --color-primary: #171717;
+  --color-primary-container: #f5f5f5;
+  --color-primary-fixed: #e5e5e5;
+  --color-primary-fixed-dim: #262626;
+
+  --color-secondary: #404040;
+  --color-secondary-container: #f5f5f5;
+  --color-secondary-fixed: #d4d4d4;
+  --color-secondary-fixed-dim: #404040;
+
+  --color-tertiary: #525252;
+  --color-tertiary-container: #fafafa;
+  --color-tertiary-fixed: #e5e5e5;
+  --color-tertiary-fixed-dim: #525252;
+
+  --color-background: #f7f7f7;
+  --color-on-background: #171717;
+
+  --color-surface-bright: rgba(255, 255, 255, 0.96);
+  --color-surface-dim: rgba(245, 245, 245, 0.58);
+  --color-surface-container: rgba(255, 255, 255, 0.88);
+  --color-surface-container-low: rgba(245, 245, 245, 0.72);
+  --color-surface-container-lowest: rgba(250, 250, 250, 0.94);
+}
+
 @layer base {
   body {
     font-family: var(--font-sans);
@@ -62,6 +93,267 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(218, 77, 115, 0.4);
   }
+
+  html[data-theme="mono"] body {
+    background-color: #ffffff;
+    color: #171717;
+    background-image: linear-gradient(180deg, #ffffff 0%, #ffffff 72%, #fbfbfb 100%);
+  }
+
+  html[data-theme="mono"] h1,
+  html[data-theme="mono"] h2,
+  html[data-theme="mono"] h3,
+  html[data-theme="mono"] h4,
+  html[data-theme="mono"] h5,
+  html[data-theme="mono"] h6 {
+    color: #171717;
+  }
+
+  html[data-theme="mono"] ::selection {
+    background: var(--mono-rose-100);
+    color: #171717;
+  }
+
+  html[data-theme="mono"] ::-webkit-scrollbar-thumb {
+    background: rgba(23, 23, 23, 0.22);
+  }
+
+  html[data-theme="mono"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(23, 23, 23, 0.42);
+  }
+}
+
+html[data-theme="mono"] .theme-shell {
+  background-color: #ffffff;
+  color: #171717;
+}
+
+html[data-theme="mono"] .theme-shell [class*="rose"],
+html[data-theme="mono"] .theme-shell [class*="pink"],
+html[data-theme="mono"] .theme-shell [class*="purple"],
+html[data-theme="mono"] .theme-shell [class*="amber"],
+html[data-theme="mono"] .theme-shell [class*="teal"],
+html[data-theme="mono"] .theme-shell [class*="emerald"],
+html[data-theme="mono"] .theme-shell [class*="cyan"],
+html[data-theme="mono"] .theme-shell [class*="indigo"],
+html[data-theme="mono"] .theme-shell [class*="orange"],
+html[data-theme="mono"] .theme-shell [class*="#da4d73"],
+html[data-theme="mono"] .theme-shell [class*="#ec4899"],
+html[data-theme="mono"] .theme-shell [class*="#a855f7"],
+html[data-theme="mono"] .theme-shell [class*="#7c3aed"],
+html[data-theme="mono"] .theme-shell [class*="#bf3b5b"] {
+  border-color: #d4d4d4 !important;
+  box-shadow: none;
+  color: #262626 !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="rose"],
+html[data-theme="mono"] .theme-shell [class*="pink"],
+html[data-theme="mono"] .theme-shell [class*="#da4d73"],
+html[data-theme="mono"] .theme-shell [class*="#ec4899"],
+html[data-theme="mono"] .theme-shell [class*="#bf3b5b"] {
+  border-color: var(--mono-rose-200) !important;
+  color: var(--mono-rose-ink) !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="bg-rose"],
+html[data-theme="mono"] .theme-shell [class*="bg-pink"],
+html[data-theme="mono"] .theme-shell [class*="bg-purple"],
+html[data-theme="mono"] .theme-shell [class*="bg-amber"],
+html[data-theme="mono"] .theme-shell [class*="bg-teal"],
+html[data-theme="mono"] .theme-shell [class*="bg-emerald"],
+html[data-theme="mono"] .theme-shell [class*="bg-cyan"],
+html[data-theme="mono"] .theme-shell [class*="bg-indigo"],
+html[data-theme="mono"] .theme-shell [class*="bg-orange"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#fff"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#fc"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#f8"],
+html[data-theme="mono"] .theme-shell [class*="bg-gradient"] {
+  background-image: none !important;
+  background-color: #fafafa !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="bg-rose"],
+html[data-theme="mono"] .theme-shell [class*="bg-pink"] {
+  background-color: var(--mono-rose-50) !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="bg-[#da4d73"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#ec4899"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#7c3aed"],
+html[data-theme="mono"] .theme-shell [class*="from-purple"],
+html[data-theme="mono"] .theme-shell [class*="to-indigo"],
+html[data-theme="mono"] .theme-shell [class*="to-[#ec4899"] {
+  background-image: none !important;
+  background-color: #171717 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="border-rose"],
+html[data-theme="mono"] .theme-shell [class*="border-pink"],
+html[data-theme="mono"] .theme-shell [class*="border-purple"],
+html[data-theme="mono"] .theme-shell [class*="border-amber"],
+html[data-theme="mono"] .theme-shell [class*="border-teal"],
+html[data-theme="mono"] .theme-shell [class*="border-emerald"],
+html[data-theme="mono"] .theme-shell [class*="border-cyan"],
+html[data-theme="mono"] .theme-shell [class*="border-indigo"],
+html[data-theme="mono"] .theme-shell [class*="border-orange"],
+html[data-theme="mono"] .theme-shell [class*="border-[#"] {
+  border-color: #d4d4d4 !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="border-rose"],
+html[data-theme="mono"] .theme-shell [class*="border-pink"] {
+  border-color: var(--mono-rose-200) !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="text-rose"],
+html[data-theme="mono"] .theme-shell [class*="text-pink"],
+html[data-theme="mono"] .theme-shell [class*="text-purple"],
+html[data-theme="mono"] .theme-shell [class*="text-amber"],
+html[data-theme="mono"] .theme-shell [class*="text-teal"],
+html[data-theme="mono"] .theme-shell [class*="text-emerald"],
+html[data-theme="mono"] .theme-shell [class*="text-cyan"],
+html[data-theme="mono"] .theme-shell [class*="text-indigo"],
+html[data-theme="mono"] .theme-shell [class*="text-orange"],
+html[data-theme="mono"] .theme-shell [class*="text-[#"] {
+  color: #262626 !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="text-rose"],
+html[data-theme="mono"] .theme-shell [class*="text-pink"],
+html[data-theme="mono"] .theme-shell [class*="text-[#da4d73"],
+html[data-theme="mono"] .theme-shell [class*="text-[#ec4899"],
+html[data-theme="mono"] .theme-shell [class*="text-[#bf3b5b"] {
+  color: var(--mono-rose-ink) !important;
+}
+
+html[data-theme="mono"] .theme-shell img,
+html[data-theme="mono"] .theme-shell picture,
+html[data-theme="mono"] .theme-shell video,
+html[data-theme="mono"] .theme-shell canvas {
+  filter: none !important;
+}
+
+html[data-theme="mono"] #role-switch-floating-btn {
+  background-color: #171717 !important;
+  border-color: #171717 !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="mono"] #agency-info-floating-btn {
+  background-color: #ffffff !important;
+  border-color: #d4d4d4 !important;
+  color: #171717 !important;
+}
+
+html[data-theme="mono"] #navbar {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-color: #e5e5e5 !important;
+  box-shadow: 0 10px 30px rgba(23, 23, 23, 0.05);
+}
+
+html[data-theme="mono"] #navbar ul {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e8e8e8 !important;
+}
+
+html[data-theme="mono"] .theme-shell > div > div > div,
+html[data-theme="mono"] .theme-shell section,
+html[data-theme="mono"] .theme-shell footer {
+  background-color: transparent;
+}
+
+html[data-theme="mono"] .theme-shell section {
+  border-color: #eeeeee !important;
+}
+
+html[data-theme="mono"] #hero {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(253, 236, 239, 0.32) 0, transparent 22%),
+    radial-gradient(circle at 92% 18%, rgba(245, 245, 245, 0.55) 0, transparent 22%),
+    linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%) !important;
+}
+
+html[data-theme="mono"] #services,
+html[data-theme="mono"] #tips {
+  background-color: #ffffff !important;
+}
+
+html[data-theme="mono"] #opiniones,
+html[data-theme="mono"] #products,
+html[data-theme="mono"] #footer {
+  background-color: #fafafa !important;
+}
+
+html[data-theme="mono"] #products {
+  margin-bottom: 0 !important;
+  border-bottom: 1px solid #f2f2f2 !important;
+}
+
+html[data-theme="mono"] #tips {
+  border-top-color: #f6f6f6 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.96) !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="bg-white"] {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+}
+
+html[data-theme="mono"] #hero img {
+  opacity: 1 !important;
+  filter: none !important;
+  visibility: visible !important;
+}
+
+html[data-theme="mono"] #hero .hero-image-overlay {
+  background-image: linear-gradient(to top, rgba(255, 255, 255, 0.18), transparent 58%) !important;
+  background-color: transparent !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="rounded-2xl"],
+html[data-theme="mono"] .theme-shell [class*="rounded-3xl"],
+html[data-theme="mono"] .theme-shell [class*="rounded-[2rem]"],
+html[data-theme="mono"] .theme-shell [class*="rounded-[24px]"],
+html[data-theme="mono"] .theme-shell [class*="rounded-[28px]"] {
+  border-color: #e8e8e8 !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="shadow-"],
+html[data-theme="mono"] .theme-shell [class*="shadow["] {
+  box-shadow: 0 12px 36px rgba(23, 23, 23, 0.06) !important;
+}
+
+html[data-theme="mono"] #theme-switch-header-btn {
+  background-color: var(--mono-rose-50) !important;
+  border-color: var(--mono-rose-200) !important;
+  color: #171717 !important;
+}
+
+html[data-theme="mono"] #theme-switch-header-btn:hover {
+  background-color: var(--mono-rose-100) !important;
+}
+
+html[data-theme="mono"] .theme-shell button[class*="bg-[#da4d73"],
+html[data-theme="mono"] .theme-shell a[class*="bg-[#da4d73"],
+html[data-theme="mono"] .theme-shell button[class*="bg-stone-900"] {
+  background-color: #111111 !important;
+  border-color: #111111 !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 30px rgba(17, 17, 17, 0.12) !important;
+}
+
+html[data-theme="mono"] .theme-shell [class*="blur-"] {
+  background-color: rgba(253, 236, 239, 0.7) !important;
+}
+
+html[data-theme="mono"] #hero span[class*="uppercase"],
+html[data-theme="mono"] #products span[class*="uppercase"],
+html[data-theme="mono"] #tips span[class*="uppercase"],
+html[data-theme="mono"] #footer p[class*="font-mono"] {
+  background-color: var(--mono-rose-50) !important;
+  border-color: var(--mono-rose-200) !important;
+  color: var(--mono-rose-ink) !important;
 }
 
 /* Material Symbols configuration */

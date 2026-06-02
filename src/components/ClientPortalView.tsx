@@ -22,7 +22,8 @@ import {
   BookOpen,
   ShoppingBag,
   Clock,
-  Star
+  Star,
+  Palette
 } from 'lucide-react';
 import { SERVICES, FEATURED_PRODUCTS, BEAUTY_ARTICLES, LANDING_HERO_IMAGE } from '../data';
 import { Service, Product, Article } from '../types';
@@ -31,9 +32,16 @@ import LogoMaria from './LogoMaria';
 interface ClientPortalViewProps {
   onOpenBooking: () => void;
   onReadArticle: (article: Article) => void;
+  visualTheme: 'color' | 'mono';
+  onToggleVisualTheme: () => void;
 }
 
-export default function ClientPortalView({ onOpenBooking, onReadArticle }: ClientPortalViewProps) {
+export default function ClientPortalView({
+  onOpenBooking,
+  onReadArticle,
+  visualTheme,
+  onToggleVisualTheme
+}: ClientPortalViewProps) {
   const [activeCategory, setActiveCategory] = useState<'all' | 'facials' | 'hair' | 'nails' | 'wellness'>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product>(FEATURED_PRODUCTS[0]);
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -86,11 +94,31 @@ export default function ClientPortalView({ onOpenBooking, onReadArticle }: Clien
           </ul>
 
           {/* Actions Bar */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={onToggleVisualTheme}
+              className="inline-flex items-center justify-center gap-2 bg-white/90 text-stone-800 hover:bg-stone-50 px-3 sm:px-4 py-2.5 rounded-full text-[10px] sm:text-[11px] font-bold uppercase tracking-wider border border-rose-100 hover:border-stone-300 transition-all duration-300 cursor-pointer shadow-sm"
+              id="theme-switch-header-btn"
+              title={visualTheme === 'color' ? 'Cambiar a estilo blanco, negro y gris' : 'Volver al estilo actual con color'}
+              aria-pressed={visualTheme === 'mono'}
+            >
+              {visualTheme === 'color' ? (
+                <>
+                  <Palette className="w-4 h-4 text-[#da4d73]" />
+                  <span className="hidden sm:inline">Modo B/N</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-stone-900" />
+                  <span className="hidden sm:inline">Modo Color</span>
+                </>
+              )}
+            </button>
+
             {/* Book Now Button  */}
             <button
               onClick={onOpenBooking}
-              className="inline-flex items-center justify-center bg-[#da4d73] text-white hover:bg-[#ec4899] px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider hover:shadow-lg hover:shadow-rose-500/20 hover:-translate-y-0.5 active:translate-y-0 text-[11px] transition-all duration-300 cursor-pointer shadow-md"
+              className="inline-flex items-center justify-center bg-[#da4d73] text-white hover:bg-[#ec4899] px-4 sm:px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider hover:shadow-lg hover:shadow-rose-500/20 hover:-translate-y-0.5 active:translate-y-0 text-[11px] transition-all duration-300 cursor-pointer shadow-md"
             >
               Reservar Cita
             </button>
@@ -152,7 +180,7 @@ export default function ClientPortalView({ onOpenBooking, onReadArticle }: Clien
                 className="absolute inset-0 w-full h-full object-cover object-top"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#fffbfb]/50 to-transparent"></div>
+              <div className="hero-image-overlay absolute inset-0 bg-gradient-to-t from-[#fffbfb]/50 to-transparent"></div>
               {/* Floating Ultra Frosted Card Overlay */}
               <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-xl p-5 rounded-2xl shadow-xl border border-rose-100 max-w-[210px] transform rotate-2 hover:rotate-0 transition-transform duration-300">
                 <p className="font-serif text-xs text-center text-stone-800 leading-normal italic">
