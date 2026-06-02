@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { SERVICES, FEATURED_PRODUCTS, BEAUTY_ARTICLES, LANDING_HERO_IMAGE } from '../data';
 import { Service, Product, Article } from '../types';
+import LogoMaria from './LogoMaria';
 
 interface ClientPortalViewProps {
   onOpenBooking: () => void;
@@ -60,7 +61,7 @@ export default function ClientPortalView({ onOpenBooking, onReadArticle }: Clien
   };
 
   return (
-    <div className="min-h-screen bg-[#fffbfb] text-[#201315] selection:bg-[#da4d73]/15 selection:text-[#da4d73] relative overflow-hidden">
+    <div className="min-h-screen bg-[#fffbfb] text-[#201315] selection:bg-[#da4d73]/15 selection:text-[#da4d73] relative overflow-x-clip">
       
       {/* Dynamic Luminous Ambient Blur Elements (Soft Skin & Peony Glows) */}
       <div className="absolute top-[0px] left-[-150px] w-[500px] h-[500px] bg-rose-100 rounded-full blur-[140px] pointer-events-none z-0"></div>
@@ -68,12 +69,11 @@ export default function ClientPortalView({ onOpenBooking, onReadArticle }: Clien
       <div className="absolute bottom-[10%] left-[-200px] w-[600px] h-[600px] bg-amber-100/50 rounded-full blur-[160px] pointer-events-none z-0"></div>
       
       {/* TopNavBar Client Section (Frosted Glass Light Beauty Theme) */}
-      <nav id="navbar" className="sticky top-0 z-40 bg-white/75 backdrop-blur-2xl border-b border-rose-100 transition-all duration-300 w-full">
+      <nav id="navbar" className="sticky top-0 z-40 bg-white/75 backdrop-blur-2xl border-b border-rose-100 transition-all duration-300 w-full shadow-xs">
         <div className="flex justify-between items-center px-6 md:px-12 py-4 max-w-7xl mx-auto">
           {/* Brand Logo */}
-          <a href="#" className="font-display-lg text-headline-md font-bold text-[#da4d73] flex flex-col items-center leading-none tracking-tight">
-            <span className="font-serif text-xl">Peluquería</span>
-            <span className="text-[9px] tracking-widest text-[#453335]/70 font-semibold font-sans mt-0.5 uppercase">María y Estética</span>
+          <a href="#" className="hover:opacity-95 transition-opacity flex items-center gap-1">
+            <LogoMaria className="flex flex-col items-center" textClass="text-2xl pt-1.5" />
           </a>
 
           {/* Desktop Navigation Links (Translucent Light Hub) */}
@@ -526,9 +526,8 @@ export default function ClientPortalView({ onOpenBooking, onReadArticle }: Clien
         <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-4 gap-10">
           
           <div className="flex flex-col gap-4">
-            <a href="#" className="font-display-lg text-[#da4d73] font-bold flex flex-col leading-none">
-              <span className="font-serif text-2xl">Peluquería</span>
-              <span className="text-[10px] tracking-widest text-[#453335]/70 font-semibold font-sans mt-0.5 uppercase">María y Estética</span>
+            <a href="#" className="hover:opacity-95 transition-opacity flex items-start w-fit">
+              <LogoMaria className="flex flex-col items-start" textClass="text-2xl pt-1.5" />
             </a>
             <p className="text-xs text-stone-500 leading-relaxed">
               Tu santuario acogedor de bienestar, alta peluquería, manicura y cuidado especializado de la piel.

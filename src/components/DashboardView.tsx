@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { Appointment } from '../types';
 import { ADMIN_AVATAR } from '../data';
+import LogoMaria from './LogoMaria';
 
 interface DashboardViewProps {
   appointments: Appointment[];
@@ -132,14 +133,9 @@ export default function DashboardView({
       {/* Mobile Header Top Bar (Visible only on mobile/tablet) */}
       <div className="fixed top-0 inset-x-0 h-16 bg-white/90 backdrop-blur-md border-b border-rose-100 px-5 flex items-center justify-between md:hidden z-40 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#da4d73] text-white flex items-center justify-center font-bold text-sm">
-            M
-          </div>
-          <div>
-            <h1 className="font-serif text-[#da4d73] font-extrabold text-[#da4d73] text-base leading-none">
-              María & Estética
-            </h1>
-            <span className="text-[9px] uppercase tracking-wider text-rose-450 font-bold block mt-0.5">Admin Portal</span>
+          <LogoMaria className="flex flex-col items-start scale-90 origin-left" textClass="text-lg pt-1" showSubtext={false} />
+          <div className="border-l border-rose-100 pl-2 ml-1">
+            <span className="text-[9px] uppercase tracking-wider text-rose-450 font-bold block">Admin Portal</span>
           </div>
         </div>
         <button
@@ -174,14 +170,9 @@ export default function DashboardView({
             >
               <div className="flex items-center justify-between pb-4 border-b border-rose-100">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-[#da4d73] text-white flex items-center justify-center font-bold text-sm">
-                    M
-                  </div>
-                  <div>
-                    <h2 className="font-serif text-[#da4d73] font-bold text-lg leading-tight">
-                      María & Estética
-                    </h2>
-                    <p className="text-[9px] uppercase tracking-wider text-rose-450 font-bold">Admin Portal</p>
+                  <LogoMaria className="flex flex-col items-start scale-90 origin-left" textClass="text-lg pt-1" showSubtext={false} />
+                  <div className="border-l border-rose-100 pl-2 ml-1">
+                    <span className="text-[9px] uppercase tracking-wider text-rose-450 font-bold block">Admin Portal</span>
                   </div>
                 </div>
                 <button
@@ -323,10 +314,8 @@ export default function DashboardView({
         
         {/* Brand Area */}
         <div className="px-3 py-6 mb-2">
-          <h1 className="font-serif text-[#da4d73] font-bold text-2xl tracking-snug leading-none">
-            Peluquería<br />María
-          </h1>
-          <span className="text-[10px] uppercase tracking-widest text-[#453335]/70 font-bold block mt-2 font-sans">Admin Portal</span>
+          <LogoMaria className="flex flex-col items-start" textClass="text-3xl pt-2" showSubtext={true} />
+          <span className="text-[10px] uppercase tracking-widest text-[#453335]/70 font-bold block mt-2.5 font-sans">Admin Portal</span>
         </div>
 
         {/* Navigation Admin Links */}
