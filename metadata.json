@@ -2,5 +2,5 @@
   "name": "Peluquería María y Estética",
   "description": "Premium hair, beauty, and aesthetics salon application in Ibiza showing an offline-first booking experience, elegant client landing pages, and a complete administrative dashboard.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }
