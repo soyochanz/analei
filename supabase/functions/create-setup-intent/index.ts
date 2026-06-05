@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
         appointmentTime: String(body.appointmentTime || ''),
         serviceId: service.id,
         service: service.name,
+        stylistId: String(body.stylistId || ''),
         noShowFeeAmount: String(noShowFeeCents)
       }
     });
@@ -68,6 +69,7 @@ Deno.serve(async (req) => {
         appointmentTime: String(body.appointmentTime || ''),
         serviceId: service.id,
         service: service.name,
+        stylistId: String(body.stylistId || ''),
         noShowFeeAmount: String(noShowFeeCents)
       }
     });

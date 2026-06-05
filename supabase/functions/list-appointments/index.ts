@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     const supabase = createAdminClient();
     const { data, error } = await supabase
       .from('appointments')
-      .select('*')
+      .select('*, stylists(name)')
       .order('appointment_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(200);
@@ -21,4 +21,3 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: error instanceof Error ? error.message : 'No se pudieron cargar las citas.' }, 500);
   }
 });
-

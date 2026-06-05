@@ -27,10 +27,14 @@ import { invokeFunction } from '../lib/supabase';
 
 interface DashboardViewProps {
   appointments: Appointment[];
+  stylists: { id: string; name: string; email?: string }[];
+  currentUserEmail?: string;
   onToggleStatus: (id: string) => void;
   onDeleteAppointment: (id: string) => void;
   onChargeNoShow: (id: string) => Promise<void>;
+  onUpdateAppointmentStatus: (id: string, status: Appointment['status'], updates?: Partial<Appointment>) => void;
   onOpenBooking: () => void;
+  onAddAppointment: (appointment: Omit<Appointment, 'clientInitials' | 'avatarColor'>) => void;
 }
 
 type AdminTab = 'dashboard' | 'clients' | 'catalog' | 'settings' | 'pos' | 'analytics' | 'staff';
@@ -76,9 +80,11 @@ type SalonSettings = {
   opening_hours: string;
 };
 
-type AdminStaff = { id?: string; auth_user_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
+type AdminStaff = { id?: string; auth_user_id?: string; stylist_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
 type PosSale = { id: string; appointment_id?: string; client_name?: string; client_email?: string; payment_method: 'cash' | 'card'; total_cents: number; created_at: string };
 type PosSaleItem = { id: string; sale_id: string; item_type: 'service' | 'product'; name: string; quantity: number; total_cents: number; created_at: string };
+type CashClosure = { id: string; method: 'cash' | 'card' | 'all'; from_at: string; to_at: string; total_cents: number; sale_count: number; created_at: string };
+type ClientProfile = { key: string; name: string; email?: string; phone?: string; appointments: Appointment[] };
 
 const eur = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
 const today = () => new Date();
@@ -88,14 +94,60 @@ const addDays = (date: Date, days: number) => {
   next.setDate(next.getDate() + days);
   return next;
 };
+const normalizeText = (value?: string) => (value || '').trim().toLowerCase();
+const normalizePhone = (value?: string) => (value || '').replace(/\D/g, '');
+const clientIdentityKey = (ap: Pick<Appointment, 'clientName' | 'clientEmail' | 'clientPhone'>) =>
+  normalizeText(ap.clientEmail) || normalizePhone(ap.clientPhone) || normalizeText(ap.clientName);
+
+const clientMatches = (ap: Pick<Appointment, 'clientName' | 'clientEmail' | 'clientPhone'>, name?: string, phone?: string, email?: string) => {
+  const targetEmail = normalizeText(email);
+  const targetPhone = normalizePhone(phone);
+  const targetName = normalizeText(name);
+  return Boolean(
+    (targetEmail && normalizeText(ap.clientEmail) === targetEmail) ||
+    (targetPhone && normalizePhone(ap.clientPhone) === targetPhone) ||
+    (targetName && normalizeText(ap.clientName).includes(targetName))
+  );
+};
+
+const buildClientProfiles = (appointments: Appointment[]) => {
+  const profiles = new Map<string, ClientProfile>();
+  appointments.forEach(ap => {
+    const key = clientIdentityKey(ap);
+    if (!key) return;
+    const existing = profiles.get(key);
+    if (existing) {
+      existing.appointments.push(ap);
+      existing.email ||= ap.clientEmail;
+      existing.phone ||= ap.clientPhone;
+      return;
+    }
+    profiles.set(key, { key, name: ap.clientName, email: ap.clientEmail, phone: ap.clientPhone, appointments: [ap] });
+  });
+  return Array.from(profiles.values()).sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const findClientProfiles = (profiles: ClientProfile[], name?: string, phone?: string, email?: string) => {
+  const targetEmail = normalizeText(email);
+  const targetPhone = normalizePhone(phone);
+  const targetName = normalizeText(name);
+  if (!targetEmail && !targetPhone && targetName.length < 2) return [];
+  return profiles.filter(profile =>
+    (targetEmail && normalizeText(profile.email).includes(targetEmail)) ||
+    (targetPhone && normalizePhone(profile.phone).includes(targetPhone)) ||
+    (targetName && normalizeText(profile.name).includes(targetName))
+  );
+};
 
 const emptyProduct: AdminProduct = { name: '', brand: '', description: '', price: 0, image_url: '', tag: '', stock: 0, is_active: true };
 const emptyService: AdminService = { name: '', description: '', category: 'hair', duration_minutes: 60, price: 0, icon_name: 'Scissors', is_active: true };
+const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: '', serviceId: '', stylistId: '', date: isoDate(today()), time: '10:00' };
 
-export default function DashboardView({ appointments, onToggleStatus, onDeleteAppointment, onChargeNoShow, onOpenBooking }: DashboardViewProps) {
+export default function DashboardView({ appointments, stylists, currentUserEmail, onToggleStatus, onDeleteAppointment, onChargeNoShow, onUpdateAppointmentStatus, onOpenBooking, onAddAppointment }: DashboardViewProps) {
   const now = today();
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
+  const [staffScope, setStaffScope] = useState<'all' | 'mine'>('all');
   const [specificDate, setSpecificDate] = useState(isoDate(now));
   const [rangeStart, setRangeStart] = useState(isoDate(addDays(now, -7)));
   const [rangeEnd, setRangeEnd] = useState(isoDate(addDays(now, 7)));
@@ -106,6 +158,7 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
   const [staff, setStaff] = useState<AdminStaff[]>([]);
   const [sales, setSales] = useState<PosSale[]>([]);
   const [saleItems, setSaleItems] = useState<PosSaleItem[]>([]);
+  const [closures, setClosures] = useState<CashClosure[]>([]);
   const [editingProduct, setEditingProduct] = useState<AdminProduct>(emptyProduct);
   const [editingService, setEditingService] = useState<AdminService>(emptyService);
   const [policy, setPolicy] = useState<NoShowPolicy>({
@@ -124,8 +177,12 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
     opening_hours: ''
   });
   const [editingStaff, setEditingStaff] = useState<AdminStaff>({ name: '', email: '', password: '', role: 'stylist', pin: '', is_admin: false, is_active: true });
+  const [adminAppointment, setAdminAppointment] = useState(emptyAdminAppointment);
   const [posCart, setPosCart] = useState<{ id?: string; name: string; price: number; type: string; quantity?: number }[]>([]);
-  const [posClient, setPosClient] = useState<{ appointmentId?: string; name: string; email?: string } | null>(null);
+  const [posClient, setPosClient] = useState<{ appointmentId?: string; name: string; email?: string; phone?: string } | null>(null);
+  const [manualItemName, setManualItemName] = useState('');
+  const [manualItemPrice, setManualItemPrice] = useState('');
+  const [cashCloseout, setCashCloseout] = useState<{ mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string } | null>(null);
 
   useEffect(() => {
     invokeFunction<{
@@ -134,6 +191,7 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
       staff?: any[];
       sales?: PosSale[];
       saleItems?: PosSaleItem[];
+      closures?: CashClosure[];
       settings?: any;
       policy?: any;
     }>('admin-panel', { action: 'load' })
@@ -162,6 +220,7 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
         setStaff((data.staff || []).filter(s => s.is_active !== false).map(s => ({
           id: s.id,
           auth_user_id: s.auth_user_id,
+          stylist_id: s.stylist_id,
           name: s.name,
           email: s.email,
           role: s.role,
@@ -171,6 +230,7 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
         })));
         setSales(data.sales || []);
         setSaleItems(data.saleItems || []);
+        setClosures(data.closures || []);
         if (data.policy) {
           setPolicy({
             enabled: data.policy.enabled,
@@ -194,18 +254,22 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
       .catch(error => console.warn('No se pudo cargar administracion:', error));
   }, []);
 
+  const currentStaff = staff.find(s => s.email === currentUserEmail);
+  const currentStylist = currentStaff?.stylist_id ? stylists.find(s => s.id === currentStaff.stylist_id) : undefined;
+
   const filteredAppointments = useMemo(() => {
-    if (dateFilter === 'all') return appointments;
+    const scoped = staffScope === 'mine' && currentStylist ? appointments.filter(ap => ap.stylistId === currentStylist.id) : appointments;
+    if (dateFilter === 'all') return scoped;
     const target =
       dateFilter === 'today' ? isoDate(now) :
       dateFilter === 'yesterday' ? isoDate(addDays(now, -1)) :
       dateFilter === 'tomorrow' ? isoDate(addDays(now, 1)) :
       specificDate;
     if (dateFilter === 'range') {
-      return appointments.filter(ap => ap.date >= rangeStart && ap.date <= rangeEnd);
+      return scoped.filter(ap => ap.date >= rangeStart && ap.date <= rangeEnd);
     }
-    return appointments.filter(ap => ap.date === target);
-  }, [appointments, dateFilter, specificDate, rangeStart, rangeEnd]);
+    return scoped.filter(ap => ap.date === target);
+  }, [appointments, dateFilter, specificDate, rangeStart, rangeEnd, staffScope, currentStylist]);
 
   const analytics = useMemo(() => {
     const todayIso = isoDate(now);
@@ -213,12 +277,18 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
     const weeklyRevenue = appointments
       .filter(ap => ap.date >= isoDate(addDays(now, -7)) && ap.status !== 'Cancelled')
       .reduce((sum, ap) => sum + ap.price, 0);
-    const uniqueClients = new Set(appointments.map(ap => ap.clientEmail || ap.clientName.toLowerCase())).size;
+    const uniqueClients = new Set(appointments.map(clientIdentityKey)).size;
     const noShowRevenue = appointments
       .filter(ap => ap.paymentGuaranteeStatus === 'charged')
       .reduce((sum, ap) => sum + (ap.noShowFeeAmount || 0), 0);
     return { todayCount: todayAppointments.length, weeklyRevenue, uniqueClients, noShowRevenue };
   }, [appointments]);
+
+  const clientProfiles = useMemo(() => buildClientProfiles(appointments), [appointments]);
+  const adminAppointmentMatches = useMemo(
+    () => findClientProfiles(clientProfiles, adminAppointment.clientName, adminAppointment.clientPhone, adminAppointment.clientEmail),
+    [clientProfiles, adminAppointment.clientName, adminAppointment.clientPhone, adminAppointment.clientEmail]
+  );
 
   const calendarDays = useMemo(() => {
     const year = now.getFullYear();
@@ -271,6 +341,43 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
     setEditingStaff({ name: '', email: '', password: '', role: 'stylist', pin: '', is_admin: false, is_active: true });
   };
 
+  const applyClientProfile = (profile: ClientProfile) => {
+    setAdminAppointment(ap => ({
+      ...ap,
+      clientName: profile.name,
+      clientEmail: profile.email || ap.clientEmail,
+      clientPhone: profile.phone || ap.clientPhone
+    }));
+  };
+
+  const createAdminAppointment = async () => {
+    if (!adminAppointment.clientName.trim()) return alert('Pon al menos el nombre del cliente.');
+    if (!adminAppointment.serviceId) return alert('Selecciona un servicio.');
+    const selectedService = services.find(service => service.id === adminAppointment.serviceId);
+    const selectedStylist = stylists.find(stylist => stylist.id === adminAppointment.stylistId);
+    const { appointment } = await invokeFunction<{ appointment: any }>('admin-panel', {
+      action: 'create_appointment',
+      appointment: adminAppointment
+    });
+    onAddAppointment({
+      id: appointment.id,
+      clientName: appointment.client_name,
+      clientEmail: appointment.client_email || undefined,
+      clientPhone: appointment.client_phone || undefined,
+      service: appointment.service_name,
+      stylistId: appointment.stylist_id || undefined,
+      stylistName: selectedStylist?.name,
+      time: appointment.appointment_time,
+      date: appointment.appointment_date,
+      status: appointment.status,
+      price: Math.round(appointment.price_cents / 100),
+      paymentGuaranteeStatus: appointment.payment_guarantee_status,
+      noShowFeeAmount: Math.round((appointment.no_show_fee_cents || 0) / 100)
+    });
+    setAdminAppointment({ ...emptyAdminAppointment, serviceId: selectedService?.id || '' });
+    alert('Cita walk-in creada sin tarjeta.');
+  };
+
   const removeStaff = async (id?: string) => {
     if (!id) return;
     await invokeFunction('admin-panel', { action: 'delete_staff', id });
@@ -296,8 +403,27 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
     }
   };
 
+  const updateAppointmentStatus = async (ap: Appointment, status: Appointment['status']) => {
+    const { appointment } = await invokeFunction<{ appointment: any }>('admin-panel', {
+      action: 'update_appointment_status',
+      appointmentId: ap.id,
+      status
+    });
+    onUpdateAppointmentStatus(ap.id, appointment.status);
+  };
+
+  const posNoShow = async (ap: Appointment) => {
+    if (ap.stripeCustomerId && ap.stripePaymentMethodId && ap.paymentGuaranteeStatus !== 'charged') {
+      await chargeNoShow(ap);
+      return;
+    }
+    if (ap.status === 'NoShow') return alert('Esta cita ya esta marcada como no-show.');
+    if (!window.confirm(`Marcar a ${ap.clientName} como no-show sin cargo de tarjeta?`)) return;
+    await updateAppointmentStatus(ap, 'NoShow');
+  };
+
   const posTotal = posCart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-  const todayAppointments = appointments.filter(ap => ap.date === isoDate(now));
+  const todayAppointments = appointments.filter(ap => ap.date === isoDate(now) && (staffScope === 'all' || !currentStylist || ap.stylistId === currentStylist.id));
 
   const completePosSale = async (paymentMethod: 'cash' | 'card') => {
     if (!posCart.length) return alert('Anade productos o servicios al ticket.');
@@ -328,11 +454,24 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
     alert(`Cobro registrado: ${eur(posTotal)} (${paymentMethod === 'cash' ? 'cash' : 'tarjeta'})`);
   };
 
-  const closeRegister = (method: 'cash' | 'card' | 'all') => {
-    const filtered = method === 'all' ? sales : sales.filter(s => s.payment_method === method);
+  const viewRegister = (method: 'cash' | 'card' | 'all') => {
+    const day = isoDate(now);
+    const filtered = (method === 'all' ? sales : sales.filter(s => s.payment_method === method)).filter(s => s.created_at.slice(0, 10) === day);
     const total = filtered.reduce((sum, sale) => sum + sale.total_cents / 100, 0);
-    const lines = filtered.map(s => `${new Date(s.created_at).toLocaleString('es-ES')} | ${s.payment_method.toUpperCase()} | ${eur(s.total_cents / 100)} | ${s.client_name || 'Mostrador'}`).join('\n');
-    alert(`CIERRE DE CAJA ${method.toUpperCase()}\n\n${lines || 'Sin cobros'}\n\nTOTAL: ${eur(total)}`);
+    setCashCloseout({ mode: 'consulta', method, sales: filtered, total, from: `${day}T00:00:00`, to: new Date().toISOString() });
+  };
+
+  const closeRegister = async (method: 'cash' | 'card' | 'all') => {
+    const { closure, sales: closedSales } = await invokeFunction<{ closure: CashClosure; sales: PosSale[] }>('admin-panel', { action: 'close_register', method });
+    setClosures(prev => [closure, ...prev]);
+    setCashCloseout({
+      mode: 'cierre',
+      method,
+      sales: closedSales,
+      total: closure.total_cents / 100,
+      from: closure.from_at,
+      to: closure.to_at
+    });
   };
 
   return (
@@ -389,6 +528,10 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
                   <option value="range">Franja de dias</option>
                   <option value="all">Todas</option>
                 </Select>
+                <Select label="Profesional" value={staffScope} onChange={value => setStaffScope(value as 'all' | 'mine')}>
+                  <option value="all">Todas</option>
+                  <option value="mine">Solo las mias</option>
+                </Select>
                 {dateFilter === 'specific' && <Field label="Dia" type="date" value={specificDate} onChange={setSpecificDate} />}
                 {dateFilter === 'range' && (
                   <>
@@ -396,9 +539,49 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
                     <Field label="Hasta" type="date" value={rangeEnd} onChange={setRangeEnd} />
                   </>
                 )}
-                <button onClick={onOpenBooking} className="rounded-full bg-[#da4d73] px-5 py-3 text-xs font-bold uppercase text-white">Nueva cita</button>
+                <button onClick={onOpenBooking} className="rounded-full bg-[#da4d73] px-5 py-3 text-xs font-bold uppercase text-white">Nueva cita online</button>
               </div>
             </section>
+
+            <section className="mb-5 rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <h3 className="font-serif text-xl font-bold">Crear walk-in / cita admin</h3>
+                  <p className="text-xs text-stone-500">Sin tarjeta ni Stripe. Busca ficha por nombre, telefono o email.</p>
+                </div>
+                <button onClick={createAdminAppointment} className="rounded-full bg-stone-900 px-5 py-3 text-xs font-bold uppercase text-white">Guardar cita</button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-4">
+                <Field label="Nombre cliente" value={adminAppointment.clientName} onChange={v => setAdminAppointment(ap => ({ ...ap, clientName: v }))} />
+                <Field label="Telefono" value={adminAppointment.clientPhone} onChange={v => setAdminAppointment(ap => ({ ...ap, clientPhone: v }))} />
+                <Field label="Email" value={adminAppointment.clientEmail} onChange={v => setAdminAppointment(ap => ({ ...ap, clientEmail: v }))} />
+                <Select label="Servicio" value={adminAppointment.serviceId} onChange={v => setAdminAppointment(ap => ({ ...ap, serviceId: v }))}>
+                  <option value="">Seleccionar</option>
+                  {services.map(service => <option key={service.id} value={service.id}>{service.name} - {eur(service.price)}</option>)}
+                </Select>
+                <Select label="Peluquero" value={adminAppointment.stylistId} onChange={v => setAdminAppointment(ap => ({ ...ap, stylistId: v }))}>
+                  <option value="">Cualquiera</option>
+                  {stylists.map(stylist => <option key={stylist.id} value={stylist.id}>{stylist.name}</option>)}
+                </Select>
+                <Field label="Fecha" type="date" value={adminAppointment.date} onChange={v => setAdminAppointment(ap => ({ ...ap, date: v }))} />
+                <Field label="Hora" type="time" value={adminAppointment.time} onChange={v => setAdminAppointment(ap => ({ ...ap, time: v }))} />
+              </div>
+              {adminAppointmentMatches.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {adminAppointmentMatches.slice(0, 5).map(profile => (
+                    <button key={profile.key} onClick={() => applyClientProfile(profile)} className="rounded-full border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-stone-700">
+                      {profile.name} · {profile.email || profile.phone || `${profile.appointments.length} citas`}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <DailyStylistCalendar
+              date={dateFilter === 'specific' ? specificDate : isoDate(now)}
+              stylists={stylists}
+              appointments={filteredAppointments}
+            />
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
               <div className="xl:col-span-8 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
@@ -411,8 +594,8 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
                     <tbody>
                       {filteredAppointments.map(ap => (
                         <tr key={ap.id} className="border-b border-rose-50">
-                          <td className="py-4 font-bold">{ap.clientName}<span className="block text-[10px] font-medium text-stone-400">{ap.clientEmail}</span></td>
-                          <td>{ap.service}<span className="block text-[10px] text-stone-400">{eur(ap.price)}</span></td>
+                          <td className="py-4 font-bold">{ap.clientName}<span className="block text-[10px] font-medium text-stone-400">{ap.clientEmail || ap.clientPhone || 'Sin contacto'}</span></td>
+                          <td>{ap.service}<span className="block text-[10px] text-stone-400">{eur(ap.price)} · {ap.stylistName || 'Cualquiera'}</span></td>
                           <td><b>{ap.time}</b><span className="block text-[10px] text-stone-400">{ap.date}</span></td>
                           <td><Status appointment={ap} /></td>
                           <td className="relative text-right">
@@ -480,9 +663,39 @@ export default function DashboardView({ appointments, onToggleStatus, onDeleteAp
         )}
         {activeTab === 'settings' && <SettingsView policy={policy} settings={settings} setPolicy={setPolicy} setSettings={setSettings} savePolicy={savePolicy} saveSettings={saveSettings} />}
         {activeTab === 'staff' && <StaffView staff={staff} editingStaff={editingStaff} setEditingStaff={setEditingStaff} saveStaff={saveStaff} removeStaff={removeStaff} />}
-        {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} appointmentsToday={todayAppointments} posClient={posClient} setPosClient={setPosClient} completeSale={completePosSale} closeRegister={closeRegister} sales={sales} />}
+        {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} appointmentsToday={todayAppointments} appointments={appointments} posClient={posClient} setPosClient={setPosClient} completeSale={completePosSale} closeRegister={closeRegister} viewRegister={viewRegister} sales={sales} saleItems={saleItems} manualItemName={manualItemName} manualItemPrice={manualItemPrice} setManualItemName={setManualItemName} setManualItemPrice={setManualItemPrice} closeout={cashCloseout} setCloseout={setCashCloseout} closures={closures} updateAppointmentStatus={updateAppointmentStatus} chargeNoShow={posNoShow} />}
       </main>
     </div>
+  );
+}
+
+function DailyStylistCalendar({ date, stylists, appointments }: { date: string; stylists: { id: string; name: string }[]; appointments: Appointment[] }) {
+  const rows = [{ id: '', name: 'Sin asignar / cualquiera' }, ...stylists];
+  return (
+    <section className="mb-6 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="font-serif text-xl font-bold">Calendario diario · {date}</h3>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Fila por peluquero</span>
+      </div>
+      <div className="space-y-3">
+        {rows.map(row => {
+          const rowAppointments = appointments.filter(ap => ap.date === date && (row.id ? ap.stylistId === row.id : !ap.stylistId));
+          return (
+            <div key={row.id || 'any'} className="grid gap-3 rounded-xl border border-rose-50 bg-rose-50/20 p-3 md:grid-cols-[160px_1fr]">
+              <div className="font-bold text-sm text-stone-800">{row.name}</div>
+              <div className="flex min-h-14 flex-wrap gap-2">
+                {rowAppointments.length === 0 ? <span className="text-xs text-stone-400">Sin citas</span> : rowAppointments.map(ap => (
+                  <div key={ap.id} className="rounded-xl bg-white px-3 py-2 text-xs shadow-sm border border-rose-100">
+                    <b>{ap.time}</b> · {ap.clientName}
+                    <span className="block text-[10px] text-stone-400">{ap.service}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -520,8 +733,8 @@ function Status({ appointment }: { appointment: Appointment }) {
 }
 
 function ClientsView({ appointments }: { appointments: Appointment[] }) {
-  const clients = Array.from(new Map(appointments.map(ap => [ap.clientEmail || ap.clientName, ap])).values());
-  return <Panel title="Fichas de clientes"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{clients.map(client => <div key={client.clientEmail || client.clientName} className="rounded-xl border border-rose-100 p-4"><p className="font-bold">{client.clientName}</p><p className="text-xs text-stone-500">{client.clientEmail || 'Sin email'}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-stone-400">{appointments.filter(ap => (ap.clientEmail || ap.clientName) === (client.clientEmail || client.clientName)).length} citas</p></div>)}</div></Panel>;
+  const clients = buildClientProfiles(appointments);
+  return <Panel title="Fichas de clientes"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{clients.map(client => <div key={client.key} className="rounded-xl border border-rose-100 p-4"><p className="font-bold">{client.name}</p><p className="text-xs text-stone-500">{client.email || 'Sin email'}{client.phone ? ` · ${client.phone}` : ''}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-stone-400">{client.appointments.length} citas encontradas por nombre, telefono o email</p><div className="mt-3 max-h-28 space-y-1 overflow-auto">{client.appointments.slice(0, 5).map(ap => <div key={ap.id} className="rounded-lg bg-rose-50 px-2 py-1 text-[11px]">{ap.date} · {ap.service}</div>)}</div></div>)}</div></Panel>;
 }
 
 function CatalogView(props: {
@@ -587,7 +800,7 @@ function SettingsView({ policy, settings, setPolicy, setSettings, savePolicy, sa
 }
 
 function PosView({
-  services, products, cart, setCart, total, appointmentsToday, posClient, setPosClient, completeSale, closeRegister, sales
+  services, products, cart, setCart, total, appointmentsToday, appointments, posClient, setPosClient, completeSale, closeRegister, viewRegister, sales, saleItems, manualItemName, manualItemPrice, setManualItemName, setManualItemPrice, closeout, setCloseout, closures, updateAppointmentStatus, chargeNoShow
 }: {
   services: AdminService[];
   products: AdminProduct[];
@@ -595,32 +808,129 @@ function PosView({
   setCart: React.Dispatch<React.SetStateAction<{ id?: string; name: string; price: number; type: string; quantity?: number }[]>>;
   total: number;
   appointmentsToday: Appointment[];
-  posClient: { appointmentId?: string; name: string; email?: string } | null;
-  setPosClient: React.Dispatch<React.SetStateAction<{ appointmentId?: string; name: string; email?: string } | null>>;
+  appointments: Appointment[];
+  posClient: { appointmentId?: string; name: string; email?: string; phone?: string } | null;
+  setPosClient: React.Dispatch<React.SetStateAction<{ appointmentId?: string; name: string; email?: string; phone?: string } | null>>;
   completeSale: (method: 'cash' | 'card') => Promise<void>;
-  closeRegister: (method: 'cash' | 'card' | 'all') => void;
+  closeRegister: (method: 'cash' | 'card' | 'all') => Promise<void>;
+  viewRegister: (method: 'cash' | 'card' | 'all') => void;
   sales: PosSale[];
+  saleItems: PosSaleItem[];
+  manualItemName: string;
+  manualItemPrice: string;
+  setManualItemName: (value: string) => void;
+  setManualItemPrice: (value: string) => void;
+  closeout: { mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string } | null;
+  setCloseout: React.Dispatch<React.SetStateAction<{ mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string } | null>>;
+  closures: CashClosure[];
+  updateAppointmentStatus: (appointment: Appointment, status: Appointment['status']) => Promise<void>;
+  chargeNoShow: (appointment: Appointment) => Promise<void>;
 }) {
   const items = [
     ...services.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'Servicio' })),
     ...products.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'Producto' }))
   ];
-  return <div className="grid min-h-[76vh] gap-6 xl:grid-cols-12">
-    <div className="xl:col-span-2 rounded-2xl border border-rose-100 bg-white p-4">
+  const clientKey = posClient?.email || posClient?.phone || posClient?.name;
+  const clientAppointments = clientKey ? appointments.filter(ap => clientMatches(ap, posClient?.name, posClient?.phone, posClient?.email)) : [];
+  const clientSales = clientKey ? sales.filter(sale => {
+    const saleEmail = normalizeText(sale.client_email);
+    const saleName = normalizeText(sale.client_name);
+    return Boolean((posClient?.email && saleEmail === normalizeText(posClient.email)) || (posClient?.name && saleName === normalizeText(posClient.name)));
+  }) : [];
+  const clientSaleIds = new Set(clientSales.map(sale => sale.id));
+  const clientItems = saleItems.filter(item => clientSaleIds.has(item.sale_id));
+  const selectedAppointment = posClient?.appointmentId ? appointments.find(ap => ap.id === posClient.appointmentId) : undefined;
+  const removeCartItem = (targetIndex: number) => setCart(prev => prev.filter((_item, index) => index !== targetIndex));
+  const addManualItem = () => {
+    const price = Number(manualItemPrice);
+    if (!manualItemName.trim() || !price) return;
+    setCart(prev => [...prev, { name: manualItemName.trim(), price, type: 'Manual', quantity: 1 }]);
+    setManualItemName('');
+    setManualItemPrice('');
+  };
+
+  return <div className="grid min-h-[78vh] gap-6 xl:grid-cols-12">
+    <div className="xl:col-span-3 rounded-2xl border border-rose-100 bg-white p-4">
       <h3 className="mb-4 font-serif text-2xl font-bold">Clientes hoy</h3>
       <button onClick={() => setPosClient(null)} className={`mb-2 w-full rounded-xl p-3 text-left text-sm font-bold ${!posClient ? 'bg-[#da4d73] text-white' : 'bg-rose-50'}`}>Mostrador</button>
-      <div className="space-y-2">{appointmentsToday.map(ap => <button key={ap.id} onClick={() => setPosClient({ appointmentId: ap.id, name: ap.clientName, email: ap.clientEmail })} className={`w-full rounded-xl p-3 text-left text-sm font-bold ${posClient?.appointmentId === ap.id ? 'bg-[#da4d73] text-white' : 'bg-rose-50/60'}`}><span>{ap.clientName}</span><span className="block text-[10px] opacity-70">{ap.time} · {ap.service}</span></button>)}</div>
+      <div className="space-y-2">{appointmentsToday.map(ap => <button key={ap.id} onClick={() => setPosClient({ appointmentId: ap.id, name: ap.clientName, email: ap.clientEmail, phone: ap.clientPhone })} className={`w-full rounded-xl p-3 text-left text-sm font-bold ${posClient?.appointmentId === ap.id ? 'bg-[#da4d73] text-white' : 'bg-rose-50/60'}`}><span>{ap.clientName}</span><span className="block text-[10px] opacity-70">{ap.time} · {ap.service}</span></button>)}</div>
+      {posClient && (
+        <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#da4d73]">Ficha cliente</p>
+          <h4 className="font-serif text-xl font-bold">{posClient.name}</h4>
+          <p className="text-xs text-stone-500">{posClient.email || 'Sin email'}{posClient.phone ? ` · ${posClient.phone}` : ''}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+            <div className="rounded-xl bg-white p-2"><b>{clientAppointments.length}</b><span className="block text-[10px] text-stone-400">citas</span></div>
+            <div className="rounded-xl bg-white p-2"><b>{clientSales.length}</b><span className="block text-[10px] text-stone-400">compras</span></div>
+          </div>
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Citas pasadas</p>
+          <div className="mt-2 max-h-28 space-y-1 overflow-auto">{clientAppointments.slice(0, 6).map(ap => <div key={ap.id} className="rounded-lg bg-white px-2 py-1 text-[11px]">{ap.date} · {ap.service}</div>)}</div>
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Compras previas</p>
+          <div className="mt-2 max-h-28 space-y-1 overflow-auto">{clientItems.slice(0, 8).map(item => <div key={item.id} className="rounded-lg bg-white px-2 py-1 text-[11px]">{item.name} · {eur(item.total_cents / 100)}</div>)}</div>
+        </div>
+      )}
+      {selectedAppointment && (
+        <div className="mt-5 rounded-2xl border border-stone-200 bg-white p-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Acciones cita</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Confirmed')} className="min-h-16 rounded-2xl bg-emerald-600 px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Confirmar</button>
+            <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Pending')} className="min-h-16 rounded-2xl bg-amber-500 px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Pendiente</button>
+            <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Cancelled')} className="min-h-16 rounded-2xl bg-stone-800 px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Cancelar</button>
+            <button onClick={() => chargeNoShow(selectedAppointment)} className="min-h-16 rounded-2xl bg-[#da4d73] px-3 py-3 text-sm font-black uppercase text-white active:scale-95">
+              {selectedAppointment.stripeCustomerId && selectedAppointment.paymentGuaranteeStatus !== 'charged' ? 'Cobrar no-show' : 'No-show'}
+            </button>
+          </div>
+          <div className="mt-3"><Status appointment={selectedAppointment} /></div>
+        </div>
+      )}
     </div>
-    <div className="xl:col-span-6 rounded-2xl border border-rose-100 bg-white p-5">
+    <div className="xl:col-span-5 rounded-2xl border border-rose-100 bg-white p-5">
       <h3 className="mb-4 font-serif text-3xl font-bold">POS tactil</h3>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3">{items.map(item => <button key={`${item.type}-${item.id || item.name}`} onClick={() => setCart(prev => [...prev, { ...item, quantity: 1 }])} className="min-h-36 rounded-2xl border border-rose-100 bg-rose-50/30 p-4 text-left text-lg font-bold active:scale-95"><LayoutGrid className="mb-3 w-6 h-6 text-[#da4d73]" />{item.name}<span className="mt-3 block text-xl text-[#da4d73]">{eur(item.price)}</span><span className="text-[10px] uppercase tracking-widest text-stone-400">{item.type}</span></button>)}</div>
+      <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
+        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Entrada manual</p>
+        <div className="grid gap-2 md:grid-cols-[1fr_120px_auto]">
+          <input value={manualItemName} onChange={e => setManualItemName(e.target.value)} placeholder="Nombre concepto" className="rounded-xl border border-rose-100 px-3 py-3 text-sm outline-[#da4d73]" />
+          <input value={manualItemPrice} onChange={e => setManualItemPrice(e.target.value)} type="number" placeholder="Precio" className="rounded-xl border border-rose-100 px-3 py-3 text-sm outline-[#da4d73]" />
+          <button onClick={addManualItem} className="rounded-xl bg-stone-900 px-5 py-3 text-xs font-bold uppercase text-white">Anadir</button>
+        </div>
+      </div>
     </div>
     <div className="xl:col-span-4 rounded-2xl border border-rose-100 bg-white p-5">
       <h3 className="font-serif text-3xl font-bold">Ticket</h3>
       <p className="mb-4 text-xs font-bold text-[#da4d73]">{posClient ? posClient.name : 'Venta mostrador'}</p>
-      <div className="space-y-2">{cart.map((item, index) => <div key={`${item.name}-${index}`} className="flex justify-between rounded-xl bg-rose-50/40 p-3 text-sm"><span>{item.name}</span><b>{eur(item.price * (item.quantity || 1))}</b></div>)}</div>
+      <div className="space-y-2">{cart.map((item, index) => <button key={`${item.name}-${index}`} onClick={() => removeCartItem(index)} className="flex w-full items-center justify-between rounded-xl bg-rose-50/40 p-3 text-left text-sm active:scale-[0.99]"><span><b>{item.name}</b><span className="block text-[10px] font-bold uppercase tracking-widest text-stone-400">Tocar para eliminar</span></span><b>{eur(item.price * (item.quantity || 1))}</b></button>)}</div>
       <div className="mt-5 border-t border-rose-100 pt-5"><div className="flex justify-between font-serif text-4xl font-bold"><span>Total</span><span>{eur(total)}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><button onClick={() => completeSale('cash')} className="rounded-2xl bg-stone-900 py-5 text-sm font-bold uppercase text-white">Cash</button><button onClick={() => completeSale('card')} className="rounded-2xl bg-[#da4d73] py-5 text-sm font-bold uppercase text-white">Tarjeta</button></div><button onClick={() => setCart([])} className="mt-2 w-full rounded-full border border-rose-100 py-3 text-xs font-bold uppercase">Vaciar</button></div>
-      <div className="mt-6 rounded-xl border border-rose-100 p-3"><p className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Cierre caja</p><div className="grid grid-cols-3 gap-2"><button onClick={() => closeRegister('cash')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Cash</button><button onClick={() => closeRegister('card')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Tarjeta</button><button onClick={() => closeRegister('all')} className="rounded-lg bg-stone-900 py-2 text-xs font-bold text-white">Total</button></div><p className="mt-2 text-[10px] text-stone-400">{sales.length} cobros registrados</p></div>
+      <div className="mt-6 rounded-xl border border-rose-100 p-3">
+        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Consultar caja hoy</p>
+        <div className="grid grid-cols-3 gap-2"><button onClick={() => viewRegister('cash')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Cash</button><button onClick={() => viewRegister('card')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Tarjeta</button><button onClick={() => viewRegister('all')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Total</button></div>
+        <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-widest text-stone-400">Cerrar caja</p>
+        <div className="grid grid-cols-3 gap-2"><button onClick={() => closeRegister('cash')} className="rounded-lg bg-stone-100 py-2 text-xs font-bold">Cash</button><button onClick={() => closeRegister('card')} className="rounded-lg bg-stone-100 py-2 text-xs font-bold">Tarjeta</button><button onClick={() => closeRegister('all')} className="rounded-lg bg-stone-900 py-2 text-xs font-bold text-white">Total</button></div>
+        <p className="mt-2 text-[10px] text-stone-400">{sales.length} cobros · {closures.length} cierres</p>
+      </div>
+      {closeout && <CloseoutTicket closeout={closeout} onClose={() => setCloseout(null)} />}
+    </div>
+  </div>;
+}
+
+function CloseoutTicket({ closeout, onClose }: { closeout: { mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string }; onClose: () => void }) {
+  return <div className="mt-5 rounded-[4px] bg-[#fffdf7] p-5 shadow-inner border border-stone-200 font-mono text-stone-900">
+    <div className="text-center border-b border-dashed border-stone-300 pb-4">
+      <p className="text-xs tracking-[0.3em]">PELUQUERIA MARIA</p>
+      <h4 className="text-lg font-black">{closeout.mode === 'cierre' ? 'CIERRE DE CAJA' : 'CONSULTA DE CAJA'}</h4>
+      <p className="text-xs">{new Date().toLocaleString('es-ES')}</p>
+      <p className="mt-1 text-xs uppercase">Modo: {closeout.method}</p>
+      {closeout.from && closeout.to && <p className="mt-1 text-[10px]">Desde {new Date(closeout.from).toLocaleString('es-ES')}<br />Hasta {new Date(closeout.to).toLocaleString('es-ES')}</p>}
+    </div>
+    <div className="my-4 max-h-64 space-y-2 overflow-auto">
+      {closeout.sales.length === 0 ? <p className="text-center text-xs">Sin cobros</p> : closeout.sales.map(sale => <div key={sale.id} className="border-b border-dashed border-stone-200 pb-2 text-xs">
+        <div className="flex justify-between"><span>{new Date(sale.created_at).toLocaleTimeString('es-ES')}</span><b>{eur(sale.total_cents / 100)}</b></div>
+        <div className="flex justify-between text-stone-500"><span>{sale.client_name || 'Mostrador'}</span><span>{sale.payment_method.toUpperCase()}</span></div>
+      </div>)}
+    </div>
+    <div className="border-t border-dashed border-stone-300 pt-4">
+      <div className="flex justify-between text-xl font-black"><span>TOTAL</span><span>{eur(closeout.total)}</span></div>
+      <button onClick={onClose} className="mt-4 w-full rounded-full bg-stone-900 py-2 text-xs font-bold uppercase text-white">Cerrar ticket</button>
     </div>
   </div>;
 }

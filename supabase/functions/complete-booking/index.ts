@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
     }
 
     const serviceId = String(body.serviceId || setupIntent.metadata.serviceId || '');
+    const stylistId = String(body.stylistId || setupIntent.metadata.stylistId || '');
     const { data: service, error: serviceError } = await supabase
       .from('services')
       .select('id, name, price_cents')
@@ -65,6 +66,7 @@ Deno.serve(async (req) => {
       client_email: String(body.clientEmail || '').trim(),
       service_id: service.id,
       service_name: service.name,
+      stylist_id: stylistId || null,
       appointment_date: String(body.appointmentDate || setupIntent.metadata.appointmentDate || ''),
       appointment_time: String(body.appointmentTime || setupIntent.metadata.appointmentTime || ''),
       status: 'Pending',

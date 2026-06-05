@@ -27,15 +27,17 @@ import { Appointment } from '../types';
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  stylists: { id: string; name: string }[];
   onBook: (appointment: Omit<Appointment, 'clientInitials' | 'avatarColor'>) => void;
 }
 
 const NO_SHOW_FEE_EUR = 40;
 
-export default function BookingModal({ isOpen, onClose, onBook }: BookingModalProps) {
+export default function BookingModal({ isOpen, onClose, stylists, onBook }: BookingModalProps) {
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [selectedService, setSelectedService] = useState(SERVICES[0].name);
+  const [selectedStylistId, setSelectedStylistId] = useState('');
   const [selectedDate, setSelectedDate] = useState('2024-10-24');
   const [selectedTime, setSelectedTime] = useState('11:00 AM');
   const [isSuccess, setIsSuccess] = useState(false);
@@ -88,6 +90,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
         appointmentDate: selectedDate,
         appointmentTime: selectedTime,
         service: selectedService,
+        stylistId: selectedStylistId,
         noShowFeeAmount: NO_SHOW_FEE_EUR * 100
       })
       .then((payload) => {
@@ -103,7 +106,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
       .finally(() => setIsPreparingPayment(false));
 
     return () => controller.abort();
-  }, [isOpen, selectedDate, selectedTime, selectedService, stripePublishableKey]);
+  }, [isOpen, selectedDate, selectedTime, selectedService, selectedStylistId, stripePublishableKey]);
 
   const completeBooking = async (setupIntentId: string, stripePaymentMethodId: string) => {
     const response = await invokeFunction<{ appointment: {
@@ -123,6 +126,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
     } }>('complete-booking', {
       setupIntentId,
       serviceId: setupServiceId,
+      stylistId: selectedStylistId,
       clientName: clientName.trim(),
       clientEmail: clientEmail.trim(),
       appointmentDate: selectedDate,
@@ -137,6 +141,8 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
       clientName: savedAppointment.client_name,
       clientEmail: savedAppointment.client_email,
       service: savedAppointment.service_name,
+      stylistId: selectedStylistId || undefined,
+      stylistName: stylists.find(s => s.id === selectedStylistId)?.name,
       time: savedAppointment.appointment_time,
       date: savedAppointment.appointment_date,
       status: savedAppointment.status,
@@ -206,6 +212,8 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
                   clientName={clientName}
                   clientEmail={clientEmail}
                   selectedService={selectedService}
+                  selectedStylistId={selectedStylistId}
+                  stylists={stylists}
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}
                   times={times}
@@ -219,6 +227,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
                   onClientNameChange={setClientName}
                   onClientEmailChange={setClientEmail}
                   onSelectedServiceChange={setSelectedService}
+                  onSelectedStylistChange={setSelectedStylistId}
                   onSelectedDateChange={setSelectedDate}
                   onSelectedTimeChange={setSelectedTime}
                   onCancel={onClose}
@@ -237,6 +246,8 @@ interface PaymentBookingFormProps {
   clientName: string;
   clientEmail: string;
   selectedService: string;
+  selectedStylistId: string;
+  stylists: { id: string; name: string }[];
   selectedDate: string;
   selectedTime: string;
   times: string[];
@@ -250,6 +261,7 @@ interface PaymentBookingFormProps {
   onClientNameChange: (value: string) => void;
   onClientEmailChange: (value: string) => void;
   onSelectedServiceChange: (value: string) => void;
+  onSelectedStylistChange: (value: string) => void;
   onSelectedDateChange: (value: string) => void;
   onSelectedTimeChange: (value: string) => void;
   onCancel: () => void;
@@ -348,6 +360,8 @@ function BookingFields({
   clientName,
   clientEmail,
   selectedService,
+  selectedStylistId,
+  stylists,
   selectedDate,
   selectedTime,
   times,
@@ -362,6 +376,7 @@ function BookingFields({
   onClientNameChange,
   onClientEmailChange,
   onSelectedServiceChange,
+  onSelectedStylistChange,
   onSelectedDateChange,
   onSelectedTimeChange,
   onCancel,
@@ -384,6 +399,13 @@ function BookingFields({
               {s.name} - EUR {s.price} ({s.duration})
             </option>
           ))}
+        </select>
+      </InputBlock>
+
+      <InputBlock label="Peluquero/a" icon={<User className="w-4 h-4" />}>
+        <select value={selectedStylistId} onChange={(e) => onSelectedStylistChange(e.target.value)} className="booking-input appearance-none cursor-pointer">
+          <option value="">Cualquiera disponible</option>
+          {stylists.map(stylist => <option key={stylist.id} value={stylist.id}>{stylist.name}</option>)}
         </select>
       </InputBlock>
 

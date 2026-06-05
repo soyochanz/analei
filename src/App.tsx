@@ -21,7 +21,10 @@ type DbAppointment = {
   id: string;
   client_name: string;
   client_email?: string;
+  client_phone?: string;
   service_name: string;
+  stylist_id?: string;
+  stylists?: { name?: string };
   appointment_time: string;
   appointment_date: string;
   status: Appointment['status'];
@@ -53,8 +56,11 @@ const appointmentFromDb = (ap: DbAppointment, index: number): Appointment => ({
   id: ap.id,
   clientName: ap.client_name,
   clientEmail: ap.client_email,
+  clientPhone: ap.client_phone,
   clientInitials: getInitials(ap.client_name),
   service: ap.service_name,
+  stylistId: ap.stylist_id,
+  stylistName: ap.stylists?.name,
   time: ap.appointment_time,
   date: ap.appointment_date,
   status: ap.status,
@@ -82,6 +88,7 @@ export default function App() {
   const [isAdminGateOpen, setIsAdminGateOpen] = useState(false);
   const [isAgencyInfoOpen, setIsAgencyInfoOpen] = useState(false);
   const [adminSession, setAdminSession] = useState<any>(null);
+  const [stylists, setStylists] = useState<{ id: string; name: string; email?: string }[]>([]);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -144,6 +151,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    invokeFunction<{ stylists: any[] }>('admin-panel', { action: 'load' })
+      .then(data => setStylists((data.stylists || []).filter(s => s.is_active !== false).map(s => ({ id: s.id, name: s.name, email: s.email }))))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = visualTheme;
     try {
       window.localStorage.setItem('maria-visual-theme', visualTheme);
@@ -181,6 +194,12 @@ export default function App() {
         }
         return ap;
       })
+    );
+  };
+
+  const handleUpdateAppointmentStatus = (id: string, status: Appointment['status'], updates?: Partial<Appointment>) => {
+    setAppointments(prev =>
+      prev.map(ap => ap.id === id ? { ...ap, ...updates, status } : ap)
     );
   };
 
@@ -273,10 +292,14 @@ export default function App() {
             ) : (
             <DashboardView
               appointments={appointments}
+              stylists={stylists}
+              currentUserEmail={adminSession?.user?.email}
               onToggleStatus={handleToggleStatus}
               onDeleteAppointment={handleDeleteAppointment}
               onChargeNoShow={handleChargeNoShow}
+              onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
               onOpenBooking={() => setIsBookingOpen(true)}
+              onAddAppointment={handleAddNewAppointment}
             />
             )
           ) : (
@@ -348,6 +371,7 @@ export default function App() {
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
+        stylists={stylists}
         onBook={handleAddNewAppointment}
       />
 
