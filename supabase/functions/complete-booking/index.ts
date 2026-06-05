@@ -49,6 +49,17 @@ Deno.serve(async (req) => {
     if (serviceError) throw serviceError;
     if (!service) return jsonResponse({ error: 'Servicio no encontrado.' }, 404);
 
+    const { data: policy } = await supabase
+      .from('no_show_policy')
+      .select('*')
+      .eq('id', true)
+      .maybeSingle();
+    const noShowFeeCents = !policy?.enabled
+      ? 0
+      : policy.charge_type === 'percentage'
+        ? Math.round(service.price_cents * Number(policy.percentage || 0) / 100)
+        : Number(policy.fixed_cents || 4000);
+
     const insertPayload = {
       client_name: String(body.clientName || '').trim(),
       client_email: String(body.clientEmail || '').trim(),
@@ -58,7 +69,7 @@ Deno.serve(async (req) => {
       appointment_time: String(body.appointmentTime || setupIntent.metadata.appointmentTime || ''),
       status: 'Pending',
       price_cents: service.price_cents,
-      no_show_fee_cents: Number(body.noShowFeeAmount || setupIntent.metadata.noShowFeeAmount || 4000),
+      no_show_fee_cents: noShowFeeCents,
       stripe_customer_id: customerId,
       stripe_payment_method_id: paymentMethodId,
       stripe_setup_intent_id: setupIntent.id,
@@ -81,4 +92,3 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: error instanceof Error ? error.message : 'No se pudo guardar la cita.' }, 500);
   }
 });
-

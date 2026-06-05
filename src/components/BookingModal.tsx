@@ -42,6 +42,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
   const [clientSecret, setClientSecret] = useState('');
   const [setupCustomerId, setSetupCustomerId] = useState('');
   const [setupServiceId, setSetupServiceId] = useState('');
+  const [setupNoShowFee, setSetupNoShowFee] = useState(NO_SHOW_FEE_EUR);
   const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const [paymentSetupError, setPaymentSetupError] = useState('');
 
@@ -82,6 +83,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
       customerId: string;
       serviceId: string;
       priceCents: number;
+      noShowFeeCents: number;
     }>('create-setup-intent', {
         appointmentDate: selectedDate,
         appointmentTime: selectedTime,
@@ -93,6 +95,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
         setClientSecret(payload.clientSecret);
         setSetupCustomerId(payload.customerId);
         setSetupServiceId(payload.serviceId);
+        setSetupNoShowFee(Math.round((payload.noShowFeeCents || NO_SHOW_FEE_EUR * 100) / 100));
       })
       .catch((error) => {
         if (!controller.signal.aborted) setPaymentSetupError(error.message);
@@ -141,7 +144,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
       stripeCustomerId: savedAppointment.stripe_customer_id || setupCustomerId,
       stripePaymentMethodId: savedAppointment.stripe_payment_method_id || stripePaymentMethodId,
       paymentGuaranteeStatus: savedAppointment.payment_guarantee_status,
-      noShowFeeAmount: Math.round((savedAppointment.no_show_fee_cents || 4000) / 100),
+      noShowFeeAmount: Math.round((savedAppointment.no_show_fee_cents || setupNoShowFee * 100) / 100),
       noShowChargeId: savedAppointment.no_show_charge_id
     });
 
@@ -212,6 +215,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
                   elementsOptions={elementsOptions}
                   clientSecret={clientSecret}
                   selectedPrice={selectedServiceDetails.price}
+                  noShowFee={setupNoShowFee}
                   onClientNameChange={setClientName}
                   onClientEmailChange={setClientEmail}
                   onSelectedServiceChange={setSelectedService}
@@ -242,6 +246,7 @@ interface PaymentBookingFormProps {
   elementsOptions?: StripeElementsOptions;
   clientSecret: string;
   selectedPrice: number;
+  noShowFee: number;
   onClientNameChange: (value: string) => void;
   onClientEmailChange: (value: string) => void;
   onSelectedServiceChange: (value: string) => void;
@@ -353,6 +358,7 @@ function BookingFields({
   isPaymentReady,
   isSubmitting = false,
   selectedPrice,
+  noShowFee,
   onClientNameChange,
   onClientEmailChange,
   onSelectedServiceChange,
@@ -398,7 +404,7 @@ function BookingFields({
           <div className="flex justify-between gap-4"><span>Tratamiento:</span><span className="font-bold text-stone-800 text-right">{selectedService}</span></div>
           <div className="flex justify-between"><span>Precio estimado:</span><span className="font-bold text-[#da4d73]">EUR {selectedPrice}</span></div>
           <div className="flex justify-between"><span>Fecha y hora:</span><span className="font-mono text-stone-850 font-bold">{selectedDate} @ {selectedTime}</span></div>
-          <div className="flex justify-between"><span>Penalizacion no-show:</span><span className="font-bold text-stone-800">EUR {NO_SHOW_FEE_EUR}</span></div>
+          <div className="flex justify-between"><span>Penalizacion no-show:</span><span className="font-bold text-stone-800">EUR {noShowFee}</span></div>
         </div>
       </div>
 

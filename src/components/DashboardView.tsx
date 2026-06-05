@@ -3,31 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Scissors,
+  CalendarDays,
   Check,
-  TrendingUp,
   CreditCard,
-  UserPlus,
-  Bell,
-  Trash2,
-  Calendar as CalendarIcon,
-  HelpCircle,
-  LogOut,
-  ChevronLeft,
-  ChevronRight,
+  Edit3,
+  LayoutGrid,
   MoreVertical,
+  Package,
   Plus,
-  CheckCircle2,
-  AlertCircle,
-  Menu,
+  Save,
+  Scissors,
+  Settings,
+  ShoppingCart,
+  Trash2,
+  UserPlus,
+  Users,
   X
 } from 'lucide-react';
 import { Appointment } from '../types';
-import { ADMIN_AVATAR } from '../data';
-import LogoMaria from './LogoMaria';
+import { invokeFunction } from '../lib/supabase';
 
 interface DashboardViewProps {
   appointments: Appointment[];
@@ -37,852 +33,497 @@ interface DashboardViewProps {
   onOpenBooking: () => void;
 }
 
-export default function DashboardView({
-  appointments,
-  onToggleStatus,
-  onDeleteAppointment,
-  onChargeNoShow,
-  onOpenBooking
-}: DashboardViewProps) {
-  // Calendar and list state filter
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>('2024-10-24'); // YYYY-MM-DD
-  const [selectedNav, setSelectedNav] = useState<string>('dashboard');
-  const [activeTableFilter, setActiveTableFilter] = useState<'all' | 'date-only' | 'pending-only'>('date-only');
-  const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+type AdminTab = 'dashboard' | 'clients' | 'catalog' | 'settings' | 'pos';
+type DateFilter = 'today' | 'yesterday' | 'tomorrow' | 'specific' | 'range' | 'all';
+
+type AdminProduct = {
+  id?: string;
+  name: string;
+  brand: string;
+  description: string;
+  price: number;
+  image_url?: string;
+  tag?: string;
+  stock: number;
+  is_active?: boolean;
+};
+
+type AdminService = {
+  id?: string;
+  name: string;
+  description: string;
+  category: string;
+  duration_minutes: number;
+  price: number;
+  icon_name?: string;
+  is_active?: boolean;
+};
+
+type NoShowPolicy = {
+  enabled: boolean;
+  charge_type: 'fixed' | 'percentage';
+  fixed: number;
+  percentage: number;
+  cancellation_hours: number;
+  policy_text: string;
+};
+
+type SalonSettings = {
+  salon_name: string;
+  phone: string;
+  email: string;
+  address: string;
+  opening_hours: string;
+};
+
+const eur = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
+const today = () => new Date();
+const isoDate = (date: Date) => date.toISOString().slice(0, 10);
+const addDays = (date: Date, days: number) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const emptyProduct: AdminProduct = { name: '', brand: '', description: '', price: 0, image_url: '', tag: '', stock: 0, is_active: true };
+const emptyService: AdminService = { name: '', description: '', category: 'hair', duration_minutes: 60, price: 0, icon_name: 'Scissors', is_active: true };
+
+export default function DashboardView({ appointments, onToggleStatus, onDeleteAppointment, onChargeNoShow, onOpenBooking }: DashboardViewProps) {
+  const now = today();
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('today');
+  const [specificDate, setSpecificDate] = useState(isoDate(now));
+  const [rangeStart, setRangeStart] = useState(isoDate(addDays(now, -7)));
+  const [rangeEnd, setRangeEnd] = useState(isoDate(addDays(now, 7)));
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [processingNoShowId, setProcessingNoShowId] = useState<string | null>(null);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [services, setServices] = useState<AdminService[]>([]);
+  const [editingProduct, setEditingProduct] = useState<AdminProduct>(emptyProduct);
+  const [editingService, setEditingService] = useState<AdminService>(emptyService);
+  const [policy, setPolicy] = useState<NoShowPolicy>({
+    enabled: true,
+    charge_type: 'fixed',
+    fixed: 40,
+    percentage: 50,
+    cancellation_hours: 24,
+    policy_text: 'Si no asistes o cancelas fuera de plazo, se cobrara la penalizacion autorizada al reservar.'
+  });
+  const [settings, setSettings] = useState<SalonSettings>({
+    salon_name: 'Peluqueria Maria y Estetica',
+    phone: '',
+    email: '',
+    address: '',
+    opening_hours: ''
+  });
+  const [posCart, setPosCart] = useState<{ name: string; price: number; type: string }[]>([]);
 
-  // Month of October 2024 helper days (week starts on Monday 30th Sep)
-  const calendarDays = [
-    { day: 30, month: 9, fullDate: '2024-09-30', isCurrentMonth: false },
-    { day: 1, month: 10, fullDate: '2024-10-01', isCurrentMonth: true },
-    { day: 2, month: 10, fullDate: '2024-10-02', isCurrentMonth: true },
-    { day: 3, month: 10, fullDate: '2024-10-03', isCurrentMonth: true },
-    { day: 4, month: 10, fullDate: '2024-10-04', isCurrentMonth: true },
-    { day: 5, month: 10, fullDate: '2024-10-05', isCurrentMonth: true },
-    { day: 6, month: 10, fullDate: '2024-10-06', isCurrentMonth: true },
-    { day: 7, month: 10, fullDate: '2024-10-07', isCurrentMonth: true },
-    { day: 8, month: 10, fullDate: '2024-10-08', isCurrentMonth: true },
-    { day: 9, month: 10, fullDate: '2024-10-09', isCurrentMonth: true },
-    { day: 10, month: 10, fullDate: '2024-10-10', isCurrentMonth: true },
-    { day: 11, month: 10, fullDate: '2024-10-11', isCurrentMonth: true },
-    { day: 12, month: 10, fullDate: '2024-10-12', isCurrentMonth: true },
-    { day: 13, month: 10, fullDate: '2024-10-13', isCurrentMonth: true },
-    { day: 14, month: 10, fullDate: '2024-10-14', isCurrentMonth: true },
-    { day: 15, month: 10, fullDate: '2024-10-15', isCurrentMonth: true },
-    { day: 16, month: 10, fullDate: '2024-10-16', isCurrentMonth: true },
-    { day: 17, month: 10, fullDate: '2024-10-17', isCurrentMonth: true },
-    { day: 18, month: 10, fullDate: '2024-10-18', isCurrentMonth: true },
-    { day: 19, month: 10, fullDate: '2024-10-19', isCurrentMonth: true },
-    { day: 20, month: 10, fullDate: '2024-10-20', isCurrentMonth: true },
-    { day: 21, month: 10, fullDate: '2024-10-21', isCurrentMonth: true },
-    { day: 22, month: 10, fullDate: '2024-10-22', isCurrentMonth: true },
-    { day: 23, month: 10, fullDate: '2024-10-23', isCurrentMonth: true },
-    { day: 24, month: 10, fullDate: '2024-10-24', isCurrentMonth: true }, // Today Active
-    { day: 25, month: 10, fullDate: '2024-10-25', isCurrentMonth: true },
-    { day: 26, month: 10, fullDate: '2024-10-26', isCurrentMonth: true },
-    { day: 27, month: 10, fullDate: '2024-10-27', isCurrentMonth: true },
-    { day: 28, month: 10, fullDate: '2024-10-28', isCurrentMonth: true },
-    { day: 29, month: 10, fullDate: '2024-10-29', isCurrentMonth: true },
-    { day: 30, month: 10, fullDate: '2024-10-30', isCurrentMonth: true },
-    { day: 31, month: 10, fullDate: '2024-10-31', isCurrentMonth: true }
-  ];
+  useEffect(() => {
+    invokeFunction<{
+      products: any[];
+      services: any[];
+      settings?: any;
+      policy?: any;
+    }>('admin-panel', { action: 'load' })
+      .then(data => {
+        setProducts((data.products || []).filter(p => p.is_active !== false).map(p => ({
+          id: p.id,
+          name: p.name,
+          brand: p.brand || '',
+          description: p.description || '',
+          price: Math.round((p.price_cents || 0) / 100),
+          image_url: p.image_url || '',
+          tag: p.tag || '',
+          stock: p.stock || 0,
+          is_active: p.is_active
+        })));
+        setServices((data.services || []).filter(s => s.is_active !== false).map(s => ({
+          id: s.id,
+          name: s.name,
+          description: s.description || '',
+          category: s.category || 'hair',
+          duration_minutes: s.duration_minutes || 60,
+          price: Math.round((s.price_cents || 0) / 100),
+          icon_name: s.icon_name || 'Scissors',
+          is_active: s.is_active
+        })));
+        if (data.policy) {
+          setPolicy({
+            enabled: data.policy.enabled,
+            charge_type: data.policy.charge_type,
+            fixed: Math.round((data.policy.fixed_cents || 0) / 100),
+            percentage: data.policy.percentage || 0,
+            cancellation_hours: data.policy.cancellation_hours || 24,
+            policy_text: data.policy.policy_text || ''
+          });
+        }
+        if (data.settings) {
+          setSettings({
+            salon_name: data.settings.salon_name || '',
+            phone: data.settings.phone || '',
+            email: data.settings.email || '',
+            address: data.settings.address || '',
+            opening_hours: data.settings.opening_hours || ''
+          });
+        }
+      })
+      .catch(error => console.warn('No se pudo cargar administracion:', error));
+  }, []);
 
-  // Helper: check if a specific day has any appointments
-  const hasAppointmentsOnDate = (fullDate: string) => {
-    return appointments.some(a => a.date === fullDate);
+  const filteredAppointments = useMemo(() => {
+    if (dateFilter === 'all') return appointments;
+    const target =
+      dateFilter === 'today' ? isoDate(now) :
+      dateFilter === 'yesterday' ? isoDate(addDays(now, -1)) :
+      dateFilter === 'tomorrow' ? isoDate(addDays(now, 1)) :
+      specificDate;
+    if (dateFilter === 'range') {
+      return appointments.filter(ap => ap.date >= rangeStart && ap.date <= rangeEnd);
+    }
+    return appointments.filter(ap => ap.date === target);
+  }, [appointments, dateFilter, specificDate, rangeStart, rangeEnd]);
+
+  const analytics = useMemo(() => {
+    const todayIso = isoDate(now);
+    const todayAppointments = appointments.filter(ap => ap.date === todayIso);
+    const weeklyRevenue = appointments
+      .filter(ap => ap.date >= isoDate(addDays(now, -7)) && ap.status !== 'Cancelled')
+      .reduce((sum, ap) => sum + ap.price, 0);
+    const uniqueClients = new Set(appointments.map(ap => ap.clientEmail || ap.clientName.toLowerCase())).size;
+    const noShowRevenue = appointments
+      .filter(ap => ap.paymentGuaranteeStatus === 'charged')
+      .reduce((sum, ap) => sum + (ap.noShowFeeAmount || 0), 0);
+    return { todayCount: todayAppointments.length, weeklyRevenue, uniqueClients, noShowRevenue };
+  }, [appointments]);
+
+  const calendarDays = useMemo(() => {
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const first = new Date(year, month, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const start = addDays(first, -offset);
+    return Array.from({ length: 42 }, (_, index) => addDays(start, index));
+  }, []);
+
+  const saveProduct = async () => {
+    const { product } = await invokeFunction<{ product: any }>('admin-panel', { action: 'upsert_product', product: editingProduct });
+    const normalized = { ...editingProduct, id: product.id };
+    setProducts(prev => [normalized, ...prev.filter(p => p.id !== product.id)]);
+    setEditingProduct(emptyProduct);
   };
 
-  // Get appointments for display based on active filter
-  const getFilteredAppointments = () => {
-    if (activeTableFilter === 'pending-only') {
-      return appointments.filter(a => a.status === 'Pending');
-    }
-    if (activeTableFilter === 'date-only') {
-      return appointments.filter(a => a.date === selectedCalendarDate);
-    }
-    return appointments; // 'all'
+  const saveService = async () => {
+    const { service } = await invokeFunction<{ service: any }>('admin-panel', { action: 'upsert_service', service: editingService });
+    const normalized = { ...editingService, id: service.id };
+    setServices(prev => [normalized, ...prev.filter(s => s.id !== service.id)]);
+    setEditingService(emptyService);
   };
 
-  const displayedAppointments = getFilteredAppointments();
-  const pendingRequestsCount = appointments.filter(a => a.status === 'Pending').length;
+  const removeProduct = async (id?: string) => {
+    if (!id) return;
+    await invokeFunction('admin-panel', { action: 'delete_product', id });
+    setProducts(prev => prev.filter(p => p.id !== id));
+  };
 
-  const handleNoShowCharge = async (ap: Appointment) => {
-    const amount = ap.noShowFeeAmount || 40;
-    const canCharge = Boolean(ap.stripeCustomerId && ap.stripePaymentMethodId);
+  const removeService = async (id?: string) => {
+    if (!id) return;
+    await invokeFunction('admin-panel', { action: 'delete_service', id });
+    setServices(prev => prev.filter(s => s.id !== id));
+  };
 
-    if (!canCharge) {
-      alert('Esta cita no tiene tarjeta de garantia. Solo se pueden cobrar no-shows de reservas creadas con Stripe.');
+  const savePolicy = async () => {
+    await invokeFunction('admin-panel', { action: 'save_policy', policy });
+    alert('Politica no-show guardada.');
+  };
+
+  const saveSettings = async () => {
+    await invokeFunction('admin-panel', { action: 'save_settings', settings });
+    alert('Ajustes de salon guardados.');
+  };
+
+  const chargeNoShow = async (ap: Appointment) => {
+    if (!ap.stripeCustomerId || !ap.stripePaymentMethodId) {
+      alert('Esta reserva no tiene tarjeta guardada. Solo puedes cobrar no-show en reservas creadas con Stripe.');
       return;
     }
-
     if (ap.paymentGuaranteeStatus === 'charged') {
-      alert('Esta cita ya tiene un cargo no-show registrado.');
+      alert('Esta reserva ya tiene el no-show cobrado.');
       return;
     }
-
-    const confirmed = window.confirm(`Marcar a ${ap.clientName} como no-show y cobrar EUR ${amount}?`);
-    if (!confirmed) return;
-
+    if (!window.confirm(`Marcar a ${ap.clientName} como no-show y cobrar ${eur(ap.noShowFeeAmount || 0)}?`)) return;
     setProcessingNoShowId(ap.id);
     try {
       await onChargeNoShow(ap.id);
     } finally {
       setProcessingNoShowId(null);
-      setActiveActionMenuId(null);
+      setActiveMenuId(null);
     }
   };
-  
-  // Format selected date string for table readable header
-  const getReadableTableHeader = () => {
-    if (activeTableFilter === 'pending-only') {
-      return 'Solicitudes Pendientes de Confirmación';
-    }
-    if (activeTableFilter === 'all') {
-      return 'Todas las Citas Programadas';
-    }
-    // Date only
-    const parts = selectedCalendarDate.split('-');
-    if (parts.length === 3) {
-      const year = parts[0];
-      const month = parts[1] === '10' ? 'Octubre' : 'Noviembre';
-      const day = parseInt(parts[2], 10);
-      return `Citas del ${day} de ${month} [${year}]`;
-    }
-    return 'Citas';
-  };
+
+  const posTotal = posCart.reduce((sum, item) => sum + item.price, 0);
 
   return (
-    <div className="flex bg-[#fffbfb] text-[#201315] antialiased overflow-x-hidden min-h-screen relative font-sans">
-      
-      {/* Background neon glows */}
-      <div className="absolute top-[5%] left-[20%] w-[350px] h-[350px] bg-rose-100 rounded-full blur-[140px] pointer-events-none z-0"></div>
-      <div className="absolute bottom-[20%] right-[10%] w-[450px] h-[450px] bg-amber-100/50 rounded-full blur-[150px] pointer-events-none z-0"></div>
-
-      {/* Mobile Header Top Bar (Visible only on mobile/tablet) */}
-      <div className="fixed top-0 inset-x-0 h-16 bg-white/90 backdrop-blur-md border-b border-rose-100 px-5 flex items-center justify-between md:hidden z-40 shadow-sm">
-        <div className="flex items-center gap-2">
-          <LogoMaria className="flex flex-col items-start scale-90 origin-left" textClass="text-lg pt-1" showSubtext={false} />
-          <div className="border-l border-rose-100 pl-2 ml-1">
-            <span className="text-[9px] uppercase tracking-wider text-rose-450 font-bold block">Admin Portal</span>
-          </div>
+    <div className="min-h-screen bg-[#fffbfb] text-stone-900 md:pl-64">
+      <aside className="fixed left-0 top-0 hidden md:flex h-screen w-64 flex-col border-r border-rose-100 bg-white p-5 shadow-sm">
+        <div className="mb-6 px-2 py-4">
+          <h1 className="font-serif text-3xl font-bold text-[#da4d73]">Maria</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Admin Portal</p>
         </div>
-        <button
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="p-2 rounded-xl bg-rose-50 text-[#da4d73] border border-rose-100/60 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
-          title="Abrir Menú"
-        >
-          <Menu className="w-5 h-5" />
+        <nav className="flex flex-col gap-2 text-xs font-bold">
+          <NavButton active={activeTab === 'dashboard'} icon={<CalendarDays className="w-4 h-4" />} label="Agenda" onClick={() => setActiveTab('dashboard')} />
+          <NavButton active={activeTab === 'clients'} icon={<Users className="w-4 h-4" />} label="Fichas clientes" onClick={() => setActiveTab('clients')} />
+          <NavButton active={activeTab === 'catalog'} icon={<Package className="w-4 h-4" />} label="Productos y servicios" onClick={() => setActiveTab('catalog')} />
+          <NavButton active={activeTab === 'settings'} icon={<Settings className="w-4 h-4" />} label="Ajustes y no-show" onClick={() => setActiveTab('settings')} />
+          <NavButton active={activeTab === 'pos'} icon={<ShoppingCart className="w-4 h-4" />} label="POS tactil" onClick={() => setActiveTab('pos')} />
+        </nav>
+        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#da4d73] px-4 py-3 text-xs font-bold uppercase text-white">
+          <Plus className="w-4 h-4" /> Nueva reserva
         </button>
-      </div>
+      </aside>
 
-      {/* Mobile Drawer Slide-over Side Menu (Active via state on touch screens) */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-50 flex md:hidden">
-            {/* Backdrop layer */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs"
-            />
-            
-            {/* Content panel */}
-            <motion.div
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 24, stiffness: 180 }}
-              className="relative flex flex-col w-72 max-w-[85vw] h-full bg-white p-5 gap-4 shadow-2xl border-r border-rose-100"
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-rose-100">
-                <div className="flex items-center gap-2">
-                  <LogoMaria className="flex flex-col items-start scale-90 origin-left" textClass="text-lg pt-1" showSubtext={false} />
-                  <div className="border-l border-rose-100 pl-2 ml-1">
-                    <span className="text-[9px] uppercase tracking-wider text-rose-450 font-bold block">Admin Portal</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="p-1.5 rounded-xl bg-rose-50 text-[#da4d73] border border-rose-100 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Navigation Admin Links */}
-              <div className="flex flex-col gap-2 flex-grow mt-4 font-semibold text-xs tracking-wide">
-                <button
-                  onClick={() => { 
-                    setSelectedNav('dashboard'); 
-                    setActiveTableFilter('date-only'); 
-                    setIsMobileMenuOpen(false); 
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-                    selectedNav === 'dashboard' && activeTableFilter === 'date-only'
-                      ? 'bg-rose-50 text-[#da4d73] font-bold border border-rose-100 shadow-sm'
-                      : 'text-stone-500 hover:bg-rose-50/50 hover:text-stone-850'
-                  }`}
-                >
-                  <span className="material-symbols-outlined shrink-0 text-[#da4d73]" style={{ fontVariationSettings: "'FILL' 1" }}>dashboard</span>
-                  Panel Principal
-                </button>
-
-                <button
-                  onClick={() => { 
-                    setSelectedNav('dashboard'); 
-                    setActiveTableFilter('all'); 
-                    setIsMobileMenuOpen(false); 
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-                    selectedNav === 'dashboard' && activeTableFilter === 'all'
-                      ? 'bg-rose-50 text-[#da4d73] font-bold border border-rose-100 shadow-sm'
-                      : 'text-stone-500 hover:bg-rose-50/50 hover:text-stone-850'
-                  }`}
-                >
-                  <span className="material-symbols-outlined shrink-0 text-[#da4d73]">event_available</span>
-                  Gestión Citas
-                  <span className="ml-auto bg-[#da4d73] text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                    {appointments.length}
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => { 
-                    setSelectedNav('dashboard'); 
-                    setActiveTableFilter('pending-only'); 
-                    setIsMobileMenuOpen(false); 
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-                    activeTableFilter === 'pending-only'
-                      ? 'bg-rose-50 text-[#da4d73] font-bold border border-rose-100 shadow-sm'
-                      : 'text-stone-500 hover:bg-rose-50/50 hover:text-stone-850'
-                  }`}
-                >
-                  <span className="material-symbols-outlined shrink-0 text-amber-500">notifications_active</span>
-                  Solicitudes
-                  {pendingRequestsCount > 0 && (
-                    <span className="ml-auto bg-amber-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                      {pendingRequestsCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => { 
-                    setSelectedNav('clients'); 
-                    setIsMobileMenuOpen(false); 
-                    alert('Total de clientes registrados: 28 (+4 esta semana).'); 
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-                    selectedNav === 'clients' ? 'bg-rose-50 text-[#da4d73] border border-rose-100 font-bold' : 'text-stone-500 hover:bg-rose-50/50 hover:text-stone-850'
-                  }`}
-                >
-                  <span className="material-symbols-outlined shrink-0 text-[#da4d73]">group</span>
-                  Fichas Clientes
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    alert('Parámetros de configuración general del local cargados correctamente.');
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-stone-500 hover:bg-rose-50/50 hover:text-stone-850 rounded-xl transition-all font-semibold cursor-pointer"
-                >
-                  <span className="material-symbols-outlined shrink-0 text-[#da4d73]">settings</span>
-                  Ajustes de Salón
-                </button>
-              </div>
-
-              {/* Action Button inside mobile drawer */}
-              <div className="py-2">
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    onOpenBooking();
-                  }}
-                  className="w-full bg-[#da4d73] text-white py-3 rounded-full text-xs font-bold hover:bg-rose-600 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  Nueva Reserva
-                </button>
-              </div>
-
-              {/* Drawer User profile */}
-              <div className="mt-auto border-t border-rose-100 pt-4 flex flex-col gap-2 text-xs">
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    alert('Servicio Técnico María y Estética: soporte@peluqueriamaria.com');
-                  }}
-                  className="flex items-center gap-3 px-4 py-2 text-stone-500 hover:bg-rose-50/50 hover:text-stone-800 rounded-xl transition-all text-left font-semibold cursor-pointer"
-                >
-                  <HelpCircle className="w-4 h-4 text-[#da4d73]" />
-                  Ayuda & Soporte
-                </button>
-                
-                <div className="flex items-center gap-3 px-3 py-2 bg-rose-50/50 rounded-xl border border-rose-100/60">
-                  <div className="w-8 h-8 rounded-lg overflow-hidden border border-rose-200 shrink-0">
-                    <img src={ADMIN_AVATAR} alt="Admin Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                  <div className="truncate">
-                    <p className="font-bold text-[11px] text-stone-850">María Admin</p>
-                    <p className="text-[9px] text-stone-500">Director Técnico</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* SideNavBar Component (Light Frosted Column - Visible only on Desktop screens) */}
-      <nav className="fixed left-0 top-0 hidden md:flex flex-col h-screen w-64 bg-white border-r border-rose-100 p-5 gap-2.5 z-30 shadow-sm">
-        
-        {/* Brand Area */}
-        <div className="px-3 py-6 mb-2">
-          <LogoMaria className="flex flex-col items-start" textClass="text-3xl pt-2" showSubtext={true} />
-          <span className="text-[10px] uppercase tracking-widest text-[#453335]/70 font-bold block mt-2.5 font-sans">Admin Portal</span>
-        </div>
-
-        {/* Navigation Admin Links */}
-        <div className="flex flex-col gap-2 flex-grow font-semibold text-xs tracking-wide">
-          <button
-            onClick={() => { setSelectedNav('dashboard'); setActiveTableFilter('date-only'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-              selectedNav === 'dashboard' && activeTableFilter === 'date-only'
-                ? 'bg-rose-55 text-[#da4d73] font-bold border border-rose-100 shadow-sm'
-                : 'text-stone-500 hover:bg-rose-55/50 hover:text-stone-850'
-            }`}
-          >
-            <span className="material-symbols-outlined shrink-0 text-[#da4d73]" style={{ fontVariationSettings: "'FILL' 1" }}>dashboard</span>
-            Panel Principal
-          </button>
-
-          <button
-            onClick={() => { setSelectedNav('dashboard'); setActiveTableFilter('all'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-              selectedNav === 'dashboard' && activeTableFilter === 'all'
-                ? 'bg-rose-55 text-[#da4d73] font-bold border border-rose-100 shadow-sm'
-                : 'text-stone-500 hover:bg-rose-55/50 hover:text-stone-850'
-            }`}
-          >
-            <span className="material-symbols-outlined shrink-0 text-[#da4d73]">event_available</span>
-            Gestión Citas
-            <span className="ml-auto bg-[#da4d73] text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-              {appointments.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => { setSelectedNav('dashboard'); setActiveTableFilter('pending-only'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-              activeTableFilter === 'pending-only'
-                ? 'bg-rose-55 text-[#da4d73] font-bold border border-rose-100 shadow-sm'
-                : 'text-stone-500 hover:bg-rose-55/50 hover:text-stone-850'
-            }`}
-          >
-            <span className="material-symbols-outlined shrink-0 text-amber-500 animate-pulse">notifications_active</span>
-            Solicitudes
-            {pendingRequestsCount > 0 && (
-              <span className="ml-auto bg-amber-500 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                {pendingRequestsCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => { setSelectedNav('clients'); alert('Total de clientes registrados: 28 (+4 esta semana).'); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
-              selectedNav === 'clients' ? 'bg-rose-55 text-[#da4d73] border border-rose-100 font-bold' : 'text-stone-500 hover:bg-rose-55/50 hover:text-stone-850'
-            }`}
-          >
-            <span className="material-symbols-outlined shrink-0 text-[#da4d73]">group</span>
-            Fichas Clientes
-          </button>
-
-          <button
-            onClick={() => alert('Parámetros de configuración general del local cargados correctamente.')}
-            className="w-full flex items-center gap-3 px-4 py-3 text-stone-500 hover:bg-rose-55/50 hover:text-stone-850 rounded-xl transition-all font-semibold cursor-pointer"
-          >
-            <span className="material-symbols-outlined shrink-0 text-[#da4d73]">settings</span>
-            Ajustes de Salón
-          </button>
-        </div>
-
-        {/* New Appointment Primary CTA inside Sidebar */}
-        <div className="px-1 py-4">
-          <button
-            onClick={onOpenBooking}
-            className="w-full bg-[#da4d73] text-white py-3 rounded-full text-xs font-bold hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-500/10 transition-all flex items-center justify-center gap-2 group uppercase tracking-wider cursor-pointer"
-          >
-            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-            Nueva Reserva
-          </button>
-        </div>
-
-        {/* Footer info area with user profile */}
-        <div className="mt-auto border-t border-rose-100 pt-4 flex flex-col gap-1.5 text-xs">
-          <button
-            onClick={() => alert('Servicio Técnico María y Estética: soporte@peluqueriamaria.com')}
-            className="flex items-center gap-3 px-4 py-2 text-stone-500 hover:bg-rose-55/50 hover:text-stone-800 rounded-xl transition-all text-left font-semibold cursor-pointer"
-          >
-            <HelpCircle className="w-4 h-4 text-[#da4d73]" />
-            Ayuda & Soporte
-          </button>
-          
-          <div className="flex items-center gap-3 px-4 py-3 mt-2 bg-rose-55/50 rounded-xl border border-rose-100/60">
-            <div className="w-10 h-10 rounded-xl overflow-hidden border border-rose-200 shrink-0">
-              <img src={ADMIN_AVATAR} alt="Admin Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            </div>
-            <div className="truncate">
-              <p className="font-bold text-xs text-stone-850">María Admin</p>
-              <p className="text-[10px] text-stone-500">Director Técnico</p>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Panel Area - Balanced top padding for mobile layout standard fit */}
-      <main className="flex-1 md:ml-64 p-6 md:p-12 pt-24 md:pt-12 w-full min-h-screen bg-transparent relative z-10">
-        
-        {/* Top Header Panel controls */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 pb-6 border-b border-rose-150 col-span-12">
+      <main className="p-5 pt-8 md:p-10">
+        <header className="mb-8 flex flex-col gap-4 border-b border-rose-100 pb-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="font-serif text-stone-900 text-3xl md:text-3.5xl font-bold mb-1">Panel de Control</h2>
-            <p className="text-xs text-stone-500 font-sans">Bienvenida de nuevo, María. Revisa el estado de la peluquería en tiempo real.</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#da4d73]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <h2 className="font-serif text-3xl font-bold">Panel de control</h2>
           </div>
-
-          {/* Quick Date alerts & pending requests notifications */}
-          <div className="flex items-center gap-4 self-stretch sm:self-auto justify-between">
-            <div className="text-right">
-              <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">Jueves, Octubre 24</p>
-              <button
-                onClick={() => setActiveTableFilter('pending-only')}
-                className="text-xs font-bold text-[#da4d73] hover:text-rose-600 hover:underline flex items-center gap-1 mt-0.5"
-              >
-                {pendingRequestsCount} Reservas Pendientes
-              </button>
-            </div>
-            
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setActiveTableFilter('pending-only');
-                  alert(`Filtrando por las ${pendingRequestsCount} solicitudes pendientes que requieren tu aprobación.`);
-                }}
-                className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-stone-700 border border-rose-100 hover:bg-rose-50 transition-colors cursor-pointer"
-                title="Bandeja de decisiones"
-              >
-                <Bell className={`w-5 h-5 text-amber-500 ${pendingRequestsCount > 0 ? 'animate-bounce' : ''}`} />
-                {pendingRequestsCount > 0 && (
-                  <span className="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-white"></span>
-                )}
-              </button>
-            </div>
+          <div className="grid grid-cols-2 gap-2 md:flex">
+            <MobileTab active={activeTab === 'dashboard'} label="Agenda" onClick={() => setActiveTab('dashboard')} />
+            <MobileTab active={activeTab === 'catalog'} label="Catalogo" onClick={() => setActiveTab('catalog')} />
+            <MobileTab active={activeTab === 'settings'} label="Ajustes" onClick={() => setActiveTab('settings')} />
+            <MobileTab active={activeTab === 'pos'} label="POS" onClick={() => setActiveTab('pos')} />
           </div>
         </header>
 
-        {/* Bento Stats Grid Cards (Classic Frosted Glass metrics) */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10 col-span-12">
-          
-          {/* Metrics card 1: Appointments Count */}
-          <div
-            onClick={() => setActiveTableFilter('all')}
-            className="bg-white rounded-[24px] p-6 border border-rose-100 shadow-sm relative overflow-hidden group hover:bg-[#fffdfd] hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-pointer"
-            title="Hacer clic para ver todas las citas"
-          >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-bl-full pointer-events-none"></div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-11 h-11 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#da4d73]">
-                <Scissors className="w-5 h-5" />
-              </div>
-              <span className="bg-rose-50 border border-rose-100 text-[#da4d73] font-bold text-[9px] uppercase tracking-widest px-2.5 py-0.5 rounded-full">Hoy</span>
-            </div>
-            <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">Citas Agendadas</h3>
-            <div className="flex items-end gap-3">
-              <p className="text-4xl font-bold text-stone-900 font-serif">{appointments.length}</p>
-              <p className="text-[10px] font-bold text-emerald-600 mb-1.5 flex items-center gap-0.5 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
-                <TrendingUp className="w-3 h-3" /> +2 hoy
-              </p>
-            </div>
-          </div>
+        {activeTab === 'dashboard' && (
+          <>
+            <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4">
+              <Metric icon={<Scissors className="w-5 h-5" />} label="Citas hoy" value={String(analytics.todayCount)} />
+              <Metric icon={<CreditCard className="w-5 h-5" />} label="Caja semana" value={eur(analytics.weeklyRevenue)} />
+              <Metric icon={<UserPlus className="w-5 h-5" />} label="Clientes" value={String(analytics.uniqueClients)} />
+              <Metric icon={<ShoppingCart className="w-5 h-5" />} label="No-show cobrado" value={eur(analytics.noShowRevenue)} />
+            </section>
 
-          {/* Metrics card 2: Estimated Weekly Revenue */}
-          <div
-            onClick={() => alert(`Caja estimada semanal basada en el precio de los servicios: €2,450 EUR.`)}
-            className="bg-white rounded-[24px] p-6 border border-rose-100 shadow-sm relative overflow-hidden group hover:bg-[#fffdfd] hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-pointer"
-            title="Hacer clic para ver desglose de caja"
-          >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full pointer-events-none"></div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <span className="bg-purple-50 border border-purple-100 text-purple-700 font-bold text-[9px] uppercase tracking-widest px-2.5 py-0.5 rounded-full">Semana</span>
-            </div>
-            <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">Caja Estimada</h3>
-            <div className="flex items-end gap-3">
-              <p className="text-4xl font-bold text-stone-900 font-serif">€2,450</p>
-              <p className="text-[10px] font-bold text-purple-600 mb-1.5 flex items-center gap-0.5 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded">
-                <TrendingUp className="w-3 h-3" /> +12%
-              </p>
-            </div>
-          </div>
-
-          {/* Metrics card 3: New Customer growth list */}
-          <div
-            onClick={() => { setSelectedNav('clients'); alert('Suscripciones a boletín semanales: 28 nuevos perfiles.'); }}
-            className="bg-white rounded-[24px] p-6 border border-rose-100 shadow-sm relative overflow-hidden group hover:bg-[#fffdfd] hover:-translate-y-1 hover:shadow-md transition-all duration-300 cursor-pointer"
-            title="Hacer clic para ver archivo de clientes"
-          >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50 rounded-bl-full pointer-events-none"></div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-11 h-11 rounded-xl bg-[#fff5f6] border border-rose-100 flex items-center justify-center text-[#da4d73]">
-                <UserPlus className="w-5 h-5" />
-              </div>
-              <span className="bg-rose-50 border border-rose-100 text-[#da4d73] font-bold text-[9px] uppercase tracking-widest px-2.5 py-0.5 rounded-full">Mes</span>
-            </div>
-            <h3 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">Nuevos Clientes</h3>
-            <div className="flex items-end gap-3">
-              <p className="text-4xl font-bold text-stone-900 font-serif">28</p>
-              <p className="text-[10px] font-bold text-stone-500 mb-1.5 flex items-center bg-stone-100 border border-stone-200 px-2.5 py-0.5 rounded-full font-sans">
-                Sostenido
-              </p>
-            </div>
-          </div>
-
-        </section>
-
-        {/* Scheduling Core Columns (Interactive calendar and booking tables) */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 col-span-12">
-          
-          {/* Column A (Upcoming Appointments list table) */}
-          <div className="lg:col-span-8 bg-white border border-rose-100 rounded-[28px] p-6 md:p-8 shadow-sm flex flex-col justify-between">
-            <div>
-              {/* Header block with controls */}
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <div>
-                  <h3 className="font-serif text-stone-900 text-xl font-bold">
-                    {getReadableTableHeader()}
-                  </h3>
-                  <p className="text-xs text-stone-400 mt-1">
-                    {activeTableFilter === 'pending-only' 
-                      ? 'Decide si confirmar o rechazar las solicitudes entrantes.'
-                      : 'Citas programadas para atención física.'}
-                  </p>
-                </div>
-                
-                {/* Reset or display controls */}
-                {activeTableFilter !== 'date-only' && (
-                  <button
-                    onClick={() => setActiveTableFilter('date-only')}
-                    className="text-xs bg-[#da4d73] text-white font-bold px-4 py-2 rounded-full hover:bg-rose-600 transition-all cursor-pointer"
-                  >
-                    Ver fecha seleccionada
-                  </button>
+            <section className="mb-5 rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-end gap-3">
+                <Select label="Vista" value={dateFilter} onChange={value => setDateFilter(value as DateFilter)}>
+                  <option value="today">Hoy</option>
+                  <option value="yesterday">Ayer</option>
+                  <option value="tomorrow">Manana</option>
+                  <option value="specific">Dia concreto</option>
+                  <option value="range">Franja de dias</option>
+                  <option value="all">Todas</option>
+                </Select>
+                {dateFilter === 'specific' && <Field label="Dia" type="date" value={specificDate} onChange={setSpecificDate} />}
+                {dateFilter === 'range' && (
+                  <>
+                    <Field label="Desde" type="date" value={rangeStart} onChange={setRangeStart} />
+                    <Field label="Hasta" type="date" value={rangeEnd} onChange={setRangeEnd} />
+                  </>
                 )}
+                <button onClick={onOpenBooking} className="rounded-full bg-[#da4d73] px-5 py-3 text-xs font-bold uppercase text-white">Nueva cita</button>
               </div>
+            </section>
 
-              {/* Grid or Table listing appointments */}
-              {displayedAppointments.length === 0 ? (
-                <div className="py-16 text-center border border-dashed border-rose-200 rounded-2xl bg-rose-50/20 flex flex-col items-center justify-center p-6">
-                  <AlertCircle className="w-8 h-8 text-amber-500 mb-3" />
-                  <p className="text-xs font-bold text-stone-800">No hay citas registradas</p>
-                  <p className="text-[11px] text-stone-500 mt-1.5 max-w-sm">
-                    {activeTableFilter === 'date-only' 
-                      ? 'No hay reservas para esta fecha en el calendario. ¡Intenta hacer clic en otra fecha con indicador!'
-                      : 'No hay citas registradas en esta categoría actualmente.'}
-                  </p>
-                  <button
-                    onClick={onOpenBooking}
-                    className="mt-5 px-5 py-2 bg-[#da4d73] text-white text-xs font-bold rounded-full uppercase hover:bg-rose-600 transition-all cursor-pointer"
-                  >
-                    + Agendar Cita
-                  </button>
-                </div>
-              ) : (
+            <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <div className="xl:col-span-8 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 font-serif text-xl font-bold">Listado de citas</h3>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-rose-50 text-stone-400 font-sans">
-                        <th className="py-3 px-2 font-bold text-[10px] tracking-wider uppercase">Cliente</th>
-                        <th className="py-3 px-2 font-bold text-[10px] tracking-wider uppercase">Servicio</th>
-                        <th className="py-3 px-2 font-bold text-[10px] tracking-wider uppercase">Hora / Fecha</th>
-                        <th className="py-3 px-2 font-bold text-[10px] tracking-wider uppercase">Estado</th>
-                        <th className="py-3 px-2 text-right text-[10px] tracking-wider uppercase">Acciones</th>
-                      </tr>
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-rose-100 text-[10px] uppercase tracking-widest text-stone-400">
+                      <tr><th className="py-3">Cliente</th><th>Servicio</th><th>Fecha</th><th>Estado</th><th className="text-right">Acciones</th></tr>
                     </thead>
-                    <tbody className="text-xs">
-                      {displayedAppointments.map((ap) => (
-                        <tr key={ap.id} className="border-b border-rose-50 hover:bg-rose-50/10 transition-colors group">
-                          
-                          {/* Client details initials badge */}
-                          <td className="py-4 px-2">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center uppercase font-bold text-xs shrink-0 select-none ${ap.avatarColor}`}>
-                                {ap.clientInitials}
-                              </div>
-                              <span className="font-bold text-stone-900 text-xs block">{ap.clientName}</span>
-                            </div>
-                          </td>
-
-                          {/* Treatment choice */}
-                          <td className="py-4 px-2 text-stone-600 text-xs font-sans">
-                            {ap.service}
-                          </td>
-
-                          {/* Schedule times/Dates split */}
-                          <td className="py-4 px-2">
-                            <span className="font-bold block text-stone-850 font-sans">{ap.time}</span>
-                            <span className="text-[10px] text-stone-400 block mt-0.5 font-mono select-none">
-                              {ap.date}
-                            </span>
-                          </td>
-
-                          {/* Status and confirming actions */}
-                          <td className="py-4 px-2">
-                            <div className="flex flex-col gap-1.5 items-start">
-                              {ap.status === 'NoShow' ? (
-                                <span className="bg-stone-900 text-white font-bold text-[10px] px-2.5 py-1 rounded-full border border-stone-900 flex items-center gap-1 w-fit select-none">
-                                  No-show
-                                </span>
-                              ) : ap.status === 'Cancelled' ? (
-                                <span className="bg-stone-100 text-stone-600 font-bold text-[10px] px-2.5 py-1 rounded-full border border-stone-200 flex items-center gap-1 w-fit select-none">
-                                  Cancelada
-                                </span>
-                              ) : ap.status === 'Confirmed' ? (
-                                <span className="bg-rose-50 text-[#da4d73] font-bold text-[10px] px-2.5 py-1 rounded-full border border-rose-100 flex items-center gap-1 w-fit select-none">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-[#da4d73] inline-block animate-ping"></span>
-                                  Confirmado
-                                </span>
-                              ) : (
-                                <span className="bg-amber-50 text-amber-750 font-bold text-[10px] px-2.5 py-1 rounded-full border border-amber-150 flex items-center gap-1.5 w-fit select-none">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse"></span>
-                                  Pendiente
-                                </span>
-                              )}
-                              {ap.paymentGuaranteeStatus === 'secured' && (
-                                <span className="bg-emerald-50 text-emerald-700 font-bold text-[9px] px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1 w-fit select-none">
-                                  <CreditCard className="w-3 h-3" />
-                                  Tarjeta guardada
-                                </span>
-                              )}
-                              {ap.paymentGuaranteeStatus === 'charged' && (
-                                <span className="bg-stone-100 text-stone-700 font-bold text-[9px] px-2 py-0.5 rounded-full border border-stone-200 w-fit select-none">
-                                  No-show cobrado
-                                </span>
-                              )}
-                              {ap.paymentGuaranteeStatus === 'charge_failed' && (
-                                <span className="bg-rose-50 text-rose-700 font-bold text-[9px] px-2 py-0.5 rounded-full border border-rose-200 w-fit select-none">
-                                  Cobro fallido
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Menu Actions options */}
-                          <td className="py-4 px-2 text-right relative">
-                            <div className="flex justify-end gap-1.5">
-                              {/* Quick click confirm for pending items */}
-                              {ap.status === 'Pending' && (
-                                <button
-                                  onClick={() => {
-                                    onToggleStatus(ap.id);
-                                    alert(`Cita de ${ap.clientName} confirmada con éxito.`);
-                                  }}
-                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer border border-rose-150"
-                                  title="Confirmar Cita Automática"
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                              )}
-                              {ap.stripeCustomerId && ap.stripePaymentMethodId && ap.paymentGuaranteeStatus !== 'charged' && (
-                                <button
-                                  onClick={() => handleNoShowCharge(ap)}
-                                  disabled={processingNoShowId === ap.id}
-                                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-purple-700 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer border border-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title={`Marcar no-show y cobrar EUR ${ap.noShowFeeAmount || 40}`}
-                                >
-                                  <CreditCard className="w-3.5 h-3.5" />
+                    <tbody>
+                      {filteredAppointments.map(ap => (
+                        <tr key={ap.id} className="border-b border-rose-50">
+                          <td className="py-4 font-bold">{ap.clientName}<span className="block text-[10px] font-medium text-stone-400">{ap.clientEmail}</span></td>
+                          <td>{ap.service}<span className="block text-[10px] text-stone-400">{eur(ap.price)}</span></td>
+                          <td><b>{ap.time}</b><span className="block text-[10px] text-stone-400">{ap.date}</span></td>
+                          <td><Status appointment={ap} /></td>
+                          <td className="relative text-right">
+                            <div className="inline-flex items-center gap-1">
+                              {ap.status === 'Pending' && <IconButton title="Confirmar" onClick={() => onToggleStatus(ap.id)}><Check className="w-4 h-4" /></IconButton>}
+                              {ap.stripeCustomerId && ap.paymentGuaranteeStatus !== 'charged' && (
+                                <button onClick={() => chargeNoShow(ap)} disabled={processingNoShowId === ap.id} className="rounded-lg border border-purple-100 px-2.5 py-1.5 text-[10px] font-bold uppercase text-purple-700 disabled:opacity-50">
                                   {processingNoShowId === ap.id ? 'Cobrando' : 'No-show'}
                                 </button>
                               )}
-                              
-                              <button
-                                onClick={() => {
-                                  setActiveActionMenuId(activeActionMenuId === ap.id ? null : ap.id);
-                                }}
-                                className="text-stone-400 hover:text-stone-700 p-1.5 rounded-lg hover:bg-rose-50 border border-rose-100 transition-all cursor-pointer"
-                              >
-                                <MoreVertical className="w-4 h-4" />
-                              </button>
-
-                              {/* Small context menu popover (Frosted mini popover) */}
-                              {activeActionMenuId === ap.id && (
-                                <div className="absolute right-2 top-11 bg-white border border-rose-150 rounded-xl shadow-xl p-1.5 z-25 text-left w-40">
-                                  <button
-                                    onClick={() => {
-                                      onToggleStatus(ap.id);
-                                      setActiveActionMenuId(null);
-                                    }}
-                                    className="w-full text-left px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-colors text-[11px] font-bold text-stone-800 cursor-pointer"
-                                  >
-                                    Revertir Estado
-                                  </button>
-                                  <button
-                                    onClick={() => handleNoShowCharge(ap)}
-                                    disabled={!ap.stripeCustomerId || !ap.stripePaymentMethodId || ap.paymentGuaranteeStatus === 'charged' || processingNoShowId === ap.id}
-                                    className="w-full text-left px-2 py-1.5 hover:bg-purple-50 text-purple-700 rounded-lg transition-colors text-[11px] font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                                  >
-                                    <CreditCard className="w-3.5 h-3.5" />
-                                    {processingNoShowId === ap.id ? 'Cobrando...' : `No-show + EUR ${ap.noShowFeeAmount || 40}`}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      onDeleteAppointment(ap.id);
-                                      setActiveActionMenuId(null);
-                                      alert('Reserva eliminada de la agenda.');
-                                    }}
-                                    className="w-full text-left px-2 py-1.5 hover:bg-rose-500/10 text-rose-600 rounded-lg transition-colors text-[11px] font-bold flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" /> Eliminar Cita
-                                  </button>
-                                </div>
-                              )}
+                              <IconButton title="Menu" onClick={() => setActiveMenuId(activeMenuId === ap.id ? null : ap.id)}><MoreVertical className="w-4 h-4" /></IconButton>
                             </div>
+                            {activeMenuId === ap.id && (
+                              <div className="absolute right-0 top-9 z-20 w-48 rounded-xl border border-rose-100 bg-white p-1.5 text-left shadow-xl">
+                                <MenuAction onClick={() => onToggleStatus(ap.id)}>Cambiar estado</MenuAction>
+                                <MenuAction onClick={() => chargeNoShow(ap)}>Marcar no-show y cobrar</MenuAction>
+                                <MenuAction danger onClick={() => onDeleteAppointment(ap.id)}>Eliminar cita</MenuAction>
+                              </div>
+                            )}
                           </td>
-
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
-
-            {/* List status filters summary bar */}
-            <div className="mt-8 pt-4 border-t border-rose-100 flex items-center justify-between text-xs text-stone-500">
-              <span className="font-semibold">Mostrando {displayedAppointments.length} resultados</span>
-              <div className="flex gap-1.5">
-                <button 
-                  onClick={() => setActiveTableFilter('date-only')}
-                  className={`px-3 py-1.5 rounded-lg cursor-pointer transition-all ${activeTableFilter === 'date-only' ? 'bg-rose-50 text-[#da4d73] border border-rose-150 font-bold' : 'hover:bg-rose-50/50'}`}
-                >
-                  Fecha actual
-                </button>
-                <button 
-                  onClick={() => setActiveTableFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg cursor-pointer transition-all ${activeTableFilter === 'all' ? 'bg-rose-50 text-[#da4d73] border border-rose-150 font-bold' : 'hover:bg-rose-50/50'}`}
-                >
-                  Ver todas
-                </button>
               </div>
-            </div>
 
-          </div>
-
-          {/* Column B (Beautiful Calendar Widget - Frosted Glass Version) */}
-          <div className="lg:col-span-4 bg-white border border-rose-100 rounded-[28px] p-6 shadow-sm h-fit">
-            
-            {/* Header control */}
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-serif text-stone-900 text-base font-bold">Octubre 2024</h3>
-              <div className="flex gap-1.5">
-                <button 
-                  onClick={() => alert('Solo se muestra Octubre de 2024 (Fecha fijada por demostración del diseño).')}
-                  className="p-1 px-1.5 text-stone-400 hover:text-stone-800 transition-colors hover:bg-rose-50 rounded-lg cursor-pointer"
-                  title="Mes anterior"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => alert('Solo se muestra Octubre de 2024 (Fecha fijada por demostración).')}
-                  className="p-1 px-1.5 text-stone-400 hover:text-stone-800 transition-colors hover:bg-rose-50 rounded-lg cursor-pointer"
-                  title="Mes siguiente"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Calendar grid layout */}
-            <div className="grid grid-cols-7 gap-1 text-center font-semibold text-xs mb-4">
-              
-              {/* Day Titles */}
-              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map(d => (
-                <div key={d} className="text-stone-400 py-1.5 select-none font-bold">
-                  {d}
+              <div className="xl:col-span-4 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+                <h3 className="mb-4 font-serif text-xl font-bold">{now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</h3>
+                <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                  {['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map(day => <div key={day} className="py-1 font-bold text-stone-400">{day}</div>)}
+                  {calendarDays.map(day => {
+                    const date = isoDate(day);
+                    const isCurrentMonth = day.getMonth() === now.getMonth();
+                    const isToday = date === isoDate(now);
+                    const hasAppointment = appointments.some(ap => ap.date === date);
+                    return (
+                      <button key={date} onClick={() => { setSpecificDate(date); setDateFilter('specific'); }} className={`relative rounded-lg py-3 font-bold ${!isCurrentMonth ? 'text-stone-300' : isToday ? 'bg-[#da4d73] text-white' : 'hover:bg-rose-50'}`}>
+                        {day.getDate()}
+                        {hasAppointment && <span className={`absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${isToday ? 'bg-white' : 'bg-[#da4d73]'}`} />}
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+            </section>
+          </>
+        )}
 
-              {/* Days matching calendar layout */}
-              {calendarDays.map((c, i) => {
-                const isActive = selectedCalendarDate === c.fullDate;
-                const matchesTodayRef = c.day === 24 && c.month === 10; // Oct 24th standard "Today" ref
-                const hasAppointments = hasAppointmentsOnDate(c.fullDate);
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      if (c.isCurrentMonth) {
-                        setSelectedCalendarDate(c.fullDate);
-                        setActiveTableFilter('date-only');
-                      } else {
-                        alert('Selecciona un día del mes de Octubre.');
-                      }
-                    }}
-                    className={`relative py-3 rounded-xl text-xs font-bold select-none flex flex-col items-center justify-center transition-all cursor-pointer ${
-                      !c.isCurrentMonth
-                        ? 'text-stone-350 opacity-30 cursor-default'
-                        : isActive
-                          ? 'bg-[#da4d73] text-white font-bold shadow-md shadow-rose-500/20'
-                          : matchesTodayRef
-                            ? 'bg-rose-50 text-[#da4d73] font-bold border border-rose-100'
-                            : 'text-stone-700 hover:bg-rose-50 hover:scale-105'
-                    }`}
-                  >
-                    <span>{c.day}</span>
-                    
-                    {/* Indicators dots for days with scheduled events */}
-                    {c.isCurrentMonth && hasAppointments && (
-                      <span className={`absolute bottom-1 w-1 h-1 rounded-full ${
-                        isActive ? 'bg-white' : 'bg-[#da4d73]'
-                      }`}></span>
-                    )}
-                  </button>
-                );
-              })}
-
-            </div>
-
-            {/* Bottom highlights metadata */}
-            <div className="pt-4 border-t border-rose-100 mt-5 font-sans">
-              <p className="text-[10px] font-bold text-stone-405 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#da4d73] inline-block shrink-0"></span>
-                Días con Citas Agendadas
-              </p>
-              
-              <button
-                onClick={() => {
-                  setSelectedCalendarDate('2024-10-24');
-                  setActiveTableFilter('date-only');
-                  alert('Fijado de regreso al día "Hoy" (24 de Octubre).');
-                }}
-                className="w-full bg-[#fff5f6] border border-rose-200 hover:border-rose-350 text-[#da4d73] py-2.5 rounded-full text-xs font-bold transition-all uppercase tracking-wider block text-center cursor-pointer"
-              >
-                Volver al Día Principal (Oct 24)
-              </button>
-            </div>
-
-          </div>
-
-        </section>
-
+        {activeTab === 'clients' && <ClientsView appointments={appointments} />}
+        {activeTab === 'catalog' && (
+          <CatalogView
+            products={products}
+            services={services}
+            editingProduct={editingProduct}
+            editingService={editingService}
+            setEditingProduct={setEditingProduct}
+            setEditingService={setEditingService}
+            saveProduct={saveProduct}
+            saveService={saveService}
+            removeProduct={removeProduct}
+            removeService={removeService}
+          />
+        )}
+        {activeTab === 'settings' && <SettingsView policy={policy} settings={settings} setPolicy={setPolicy} setSettings={setSettings} savePolicy={savePolicy} saveSettings={saveSettings} />}
+        {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} />}
       </main>
     </div>
   );
+}
+
+function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
+  return <button onClick={onClick} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left ${active ? 'bg-rose-50 text-[#da4d73]' : 'text-stone-500 hover:bg-rose-50/60'}`}>{icon}{label}</button>;
+}
+
+function MobileTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return <button onClick={onClick} className={`rounded-full px-3 py-2 text-[10px] font-bold uppercase ${active ? 'bg-[#da4d73] text-white' : 'bg-white text-stone-500 border border-rose-100'}`}>{label}</button>;
+}
+
+function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm"><div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-[#da4d73]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
+}
+
+function Field({ label, value, onChange, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; type?: string }) {
+  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[#da4d73]" /></label>;
+}
+
+function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
+  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<select value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[#da4d73]">{children}</select></label>;
+}
+
+function IconButton({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+  return <button title={title} onClick={onClick} className="rounded-lg border border-rose-100 p-1.5 text-stone-500 hover:bg-rose-50">{children}</button>;
+}
+
+function MenuAction({ children, onClick, danger = false }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
+  return <button onClick={onClick} className={`block w-full rounded-lg px-3 py-2 text-left text-[11px] font-bold ${danger ? 'text-rose-600 hover:bg-rose-50' : 'text-stone-700 hover:bg-rose-50'}`}>{children}</button>;
+}
+
+function Status({ appointment }: { appointment: Appointment }) {
+  const label = appointment.status === 'NoShow' ? 'No-show' : appointment.status === 'Confirmed' ? 'Confirmada' : appointment.status === 'Cancelled' ? 'Cancelada' : 'Pendiente';
+  return <div className="flex flex-col gap-1"><span className="w-fit rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-[#da4d73]">{label}</span>{appointment.paymentGuaranteeStatus === 'charged' && <span className="w-fit rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-bold text-stone-700">No-show cobrado</span>}{appointment.paymentGuaranteeStatus === 'secured' && <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">Tarjeta guardada</span>}</div>;
+}
+
+function ClientsView({ appointments }: { appointments: Appointment[] }) {
+  const clients = Array.from(new Map(appointments.map(ap => [ap.clientEmail || ap.clientName, ap])).values());
+  return <Panel title="Fichas de clientes"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{clients.map(client => <div key={client.clientEmail || client.clientName} className="rounded-xl border border-rose-100 p-4"><p className="font-bold">{client.clientName}</p><p className="text-xs text-stone-500">{client.clientEmail || 'Sin email'}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-stone-400">{appointments.filter(ap => (ap.clientEmail || ap.clientName) === (client.clientEmail || client.clientName)).length} citas</p></div>)}</div></Panel>;
+}
+
+function CatalogView(props: {
+  products: AdminProduct[]; services: AdminService[]; editingProduct: AdminProduct; editingService: AdminService;
+  setEditingProduct: React.Dispatch<React.SetStateAction<AdminProduct>>; setEditingService: React.Dispatch<React.SetStateAction<AdminService>>;
+  saveProduct: () => Promise<void>; saveService: () => Promise<void>; removeProduct: (id?: string) => Promise<void>; removeService: (id?: string) => Promise<void>;
+}) {
+  return <div className="grid gap-6 xl:grid-cols-2">
+    <Panel title="Productos tienda">
+      <Editor title="Producto" onSave={props.saveProduct} onNew={() => props.setEditingProduct(emptyProduct)}>
+        <Field label="Nombre" value={props.editingProduct.name} onChange={v => props.setEditingProduct(p => ({ ...p, name: v }))} />
+        <Field label="Marca" value={props.editingProduct.brand} onChange={v => props.setEditingProduct(p => ({ ...p, brand: v }))} />
+        <Field label="Precio EUR" type="number" value={props.editingProduct.price} onChange={v => props.setEditingProduct(p => ({ ...p, price: Number(v) }))} />
+        <Field label="Stock" type="number" value={props.editingProduct.stock} onChange={v => props.setEditingProduct(p => ({ ...p, stock: Number(v) }))} />
+        <Field label="Imagen URL" value={props.editingProduct.image_url || ''} onChange={v => props.setEditingProduct(p => ({ ...p, image_url: v }))} />
+      </Editor>
+      <List items={props.products} onEdit={props.setEditingProduct} onDelete={props.removeProduct} />
+    </Panel>
+    <Panel title="Servicios">
+      <Editor title="Servicio" onSave={props.saveService} onNew={() => props.setEditingService(emptyService)}>
+        <Field label="Nombre" value={props.editingService.name} onChange={v => props.setEditingService(s => ({ ...s, name: v }))} />
+        <Field label="Categoria" value={props.editingService.category} onChange={v => props.setEditingService(s => ({ ...s, category: v }))} />
+        <Field label="Precio EUR" type="number" value={props.editingService.price} onChange={v => props.setEditingService(s => ({ ...s, price: Number(v) }))} />
+        <Field label="Duracion min" type="number" value={props.editingService.duration_minutes} onChange={v => props.setEditingService(s => ({ ...s, duration_minutes: Number(v) }))} />
+        <Field label="Descripcion" value={props.editingService.description} onChange={v => props.setEditingService(s => ({ ...s, description: v }))} />
+      </Editor>
+      <List items={props.services} onEdit={props.setEditingService} onDelete={props.removeService} />
+    </Panel>
+  </div>;
+}
+
+function Editor({ title, children, onSave, onNew }: { title: string; children: React.ReactNode; onSave: () => Promise<void>; onNew: () => void }) {
+  return <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50/20 p-4"><div className="mb-3 flex items-center justify-between"><h4 className="font-bold">{title}</h4><button onClick={onNew} className="rounded-lg border border-rose-100 bg-white p-2"><X className="w-4 h-4" /></button></div><div className="grid gap-3 md:grid-cols-2">{children}</div><button onClick={onSave} className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#da4d73] px-4 py-2 text-xs font-bold uppercase text-white"><Save className="w-4 h-4" /> Guardar</button></div>;
+}
+
+function List<T extends { id?: string; name: string; price: number; brand?: string; duration_minutes?: number; stock?: number }>({ items, onEdit, onDelete }: { items: T[]; onEdit: (item: T) => void; onDelete: (id?: string) => void }) {
+  return <div className="space-y-2">{items.map(item => <div key={item.id || item.name} className="flex items-center justify-between rounded-xl border border-rose-100 p-3"><div><p className="font-bold">{item.name}</p><p className="text-xs text-stone-500">{item.brand || `${item.duration_minutes || 0} min`} · {eur(item.price)} {typeof item.stock === 'number' ? `· Stock ${item.stock}` : ''}</p></div><div className="flex gap-1"><IconButton title="Editar" onClick={() => onEdit(item)}><Edit3 className="w-4 h-4" /></IconButton><IconButton title="Eliminar" onClick={() => onDelete(item.id)}><Trash2 className="w-4 h-4" /></IconButton></div></div>)}</div>;
+}
+
+function SettingsView({ policy, settings, setPolicy, setSettings, savePolicy, saveSettings }: { policy: NoShowPolicy; settings: SalonSettings; setPolicy: React.Dispatch<React.SetStateAction<NoShowPolicy>>; setSettings: React.Dispatch<React.SetStateAction<SalonSettings>>; savePolicy: () => Promise<void>; saveSettings: () => Promise<void> }) {
+  return <div className="grid gap-6 xl:grid-cols-2">
+    <Panel title="Politica no-show">
+      <div className="grid gap-3 md:grid-cols-2">
+        <Select label="Tipo de cargo" value={policy.charge_type} onChange={v => setPolicy(p => ({ ...p, charge_type: v as NoShowPolicy['charge_type'] }))}><option value="fixed">Fijo</option><option value="percentage">Porcentaje</option></Select>
+        <Field label="Horas cancelacion" type="number" value={policy.cancellation_hours} onChange={v => setPolicy(p => ({ ...p, cancellation_hours: Number(v) }))} />
+        <Field label="Monto fijo EUR" type="number" value={policy.fixed} onChange={v => setPolicy(p => ({ ...p, fixed: Number(v) }))} />
+        <Field label="Porcentaje %" type="number" value={policy.percentage} onChange={v => setPolicy(p => ({ ...p, percentage: Number(v) }))} />
+      </div>
+      <textarea value={policy.policy_text} onChange={e => setPolicy(p => ({ ...p, policy_text: e.target.value }))} className="mt-3 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+      <button onClick={savePolicy} className="mt-3 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar politica</button>
+    </Panel>
+    <Panel title="Ajustes de salon">
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Nombre" value={settings.salon_name} onChange={v => setSettings(s => ({ ...s, salon_name: v }))} />
+        <Field label="Telefono" value={settings.phone} onChange={v => setSettings(s => ({ ...s, phone: v }))} />
+        <Field label="Email" value={settings.email} onChange={v => setSettings(s => ({ ...s, email: v }))} />
+        <Field label="Direccion" value={settings.address} onChange={v => setSettings(s => ({ ...s, address: v }))} />
+      </div>
+      <textarea value={settings.opening_hours} onChange={e => setSettings(s => ({ ...s, opening_hours: e.target.value }))} placeholder="Horario" className="mt-3 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+      <button onClick={saveSettings} className="mt-3 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ajustes</button>
+    </Panel>
+  </div>;
+}
+
+function PosView({ services, products, cart, setCart, total }: { services: AdminService[]; products: AdminProduct[]; cart: { name: string; price: number; type: string }[]; setCart: React.Dispatch<React.SetStateAction<{ name: string; price: number; type: string }[]>>; total: number }) {
+  const items = [...services.map(s => ({ name: s.name, price: s.price, type: 'Servicio' })), ...products.map(p => ({ name: p.name, price: p.price, type: 'Producto' }))];
+  return <div className="grid min-h-[70vh] gap-6 xl:grid-cols-12">
+    <div className="xl:col-span-8 rounded-2xl border border-rose-100 bg-white p-5">
+      <h3 className="mb-4 font-serif text-2xl font-bold">POS tactil</h3>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">{items.map(item => <button key={`${item.type}-${item.name}`} onClick={() => setCart(prev => [...prev, item])} className="aspect-square rounded-2xl border border-rose-100 bg-rose-50/30 p-3 text-left font-bold active:scale-95"><LayoutGrid className="mb-3 w-5 h-5 text-[#da4d73]" />{item.name}<span className="mt-2 block text-sm text-[#da4d73]">{eur(item.price)}</span><span className="text-[10px] uppercase tracking-widest text-stone-400">{item.type}</span></button>)}</div>
+    </div>
+    <div className="xl:col-span-4 rounded-2xl border border-rose-100 bg-white p-5">
+      <h3 className="mb-4 font-serif text-2xl font-bold">Ticket</h3>
+      <div className="space-y-2">{cart.map((item, index) => <div key={`${item.name}-${index}`} className="flex justify-between rounded-xl bg-rose-50/40 p-3 text-sm"><span>{item.name}</span><b>{eur(item.price)}</b></div>)}</div>
+      <div className="mt-5 border-t border-rose-100 pt-5"><div className="flex justify-between font-serif text-3xl font-bold"><span>Total</span><span>{eur(total)}</span></div><button onClick={() => alert('Pago registrado en POS demo.')} className="mt-5 w-full rounded-full bg-stone-900 py-4 text-sm font-bold uppercase text-white">Cobrar</button><button onClick={() => setCart([])} className="mt-2 w-full rounded-full border border-rose-100 py-3 text-xs font-bold uppercase">Vaciar</button></div>
+    </div>
+  </div>;
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm"><h3 className="mb-5 font-serif text-2xl font-bold">{title}</h3>{children}</section>;
 }

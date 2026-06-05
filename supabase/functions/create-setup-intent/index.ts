@@ -2,7 +2,19 @@ import Stripe from 'https://esm.sh/stripe@17.6.0?target=deno';
 import { createAdminClient } from '../_shared/admin.ts';
 import { handleOptions, jsonResponse } from '../_shared/http.ts';
 
-const NO_SHOW_FEE_CENTS = 4000;
+const getNoShowFeeCents = async (supabase: ReturnType<typeof createAdminClient>, priceCents: number) => {
+  const { data } = await supabase
+    .from('no_show_policy')
+    .select('*')
+    .eq('id', true)
+    .maybeSingle();
+
+  if (!data?.enabled) return 0;
+  if (data.charge_type === 'percentage') {
+    return Math.round(priceCents * Number(data.percentage || 0) / 100);
+  }
+  return Number(data.fixed_cents || 4000);
+};
 
 Deno.serve(async (req) => {
   const optionsResponse = handleOptions(req);
@@ -32,6 +44,8 @@ Deno.serve(async (req) => {
     if (serviceError) throw serviceError;
     if (!service) return jsonResponse({ error: 'Servicio no encontrado.' }, 404);
 
+    const noShowFeeCents = await getNoShowFeeCents(supabase, service.price_cents);
+
     const customer = await stripe.customers.create({
       email: body.clientEmail || undefined,
       name: body.clientName || undefined,
@@ -41,7 +55,7 @@ Deno.serve(async (req) => {
         appointmentTime: String(body.appointmentTime || ''),
         serviceId: service.id,
         service: service.name,
-        noShowFeeAmount: String(body.noShowFeeAmount || NO_SHOW_FEE_CENTS)
+        noShowFeeAmount: String(noShowFeeCents)
       }
     });
 
@@ -54,7 +68,7 @@ Deno.serve(async (req) => {
         appointmentTime: String(body.appointmentTime || ''),
         serviceId: service.id,
         service: service.name,
-        noShowFeeAmount: String(body.noShowFeeAmount || NO_SHOW_FEE_CENTS)
+        noShowFeeAmount: String(noShowFeeCents)
       }
     });
 
@@ -62,10 +76,10 @@ Deno.serve(async (req) => {
       clientSecret: setupIntent.client_secret,
       customerId: customer.id,
       serviceId: service.id,
-      priceCents: service.price_cents
+      priceCents: service.price_cents,
+      noShowFeeCents
     });
   } catch (error) {
     return jsonResponse({ error: error instanceof Error ? error.message : 'Stripe setup failed' }, 500);
   }
 });
-
