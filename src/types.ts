@@ -6,12 +6,18 @@
 export interface Appointment {
   id: string;
   clientName: string;
+  clientEmail?: string;
   clientInitials: string;
   service: string;
   time: string;
   date: string; // Format: YYYY-MM-DD
   status: 'Confirmed' | 'Pending';
   price: number;
+  stripeCustomerId?: string;
+  stripePaymentMethodId?: string;
+  paymentGuaranteeStatus?: 'secured' | 'not_required' | 'charged' | 'charge_failed';
+  noShowFeeAmount?: number;
+  noShowChargeId?: string;
   avatarColor: string; // CSS color or Tailwind class indicator
 }
 

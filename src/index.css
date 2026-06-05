@@ -372,3 +372,29 @@ html[data-theme="mono"] #footer p[class*="font-mono"] {
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
 }
+
+@layer components {
+  .booking-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    background: #ffffff;
+    border: 1px solid #fecdd3;
+    border-radius: 0.75rem;
+    color: #292524;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .booking-input::placeholder {
+    color: #a8a29e;
+  }
+
+  .booking-input:focus {
+    border-color: #da4d73;
+    box-shadow: 0 0 0 1px #da4d73;
+    outline: none;
+  }
+}

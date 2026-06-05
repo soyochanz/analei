@@ -33,6 +33,7 @@ interface DashboardViewProps {
   appointments: Appointment[];
   onToggleStatus: (id: string) => void;
   onDeleteAppointment: (id: string) => void;
+  onChargeNoShow: (id: string) => void;
   onOpenBooking: () => void;
 }
 
@@ -40,6 +41,7 @@ export default function DashboardView({
   appointments,
   onToggleStatus,
   onDeleteAppointment,
+  onChargeNoShow,
   onOpenBooking
 }: DashboardViewProps) {
   // Calendar and list state filter
@@ -615,17 +617,35 @@ export default function DashboardView({
 
                           {/* Status and confirming actions */}
                           <td className="py-4 px-2">
-                            {ap.status === 'Confirmed' ? (
-                              <span className="bg-rose-50 text-[#da4d73] font-bold text-[10px] px-2.5 py-1 rounded-full border border-rose-100 flex items-center gap-1 w-fit select-none">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#da4d73] inline-block animate-ping"></span>
-                                Confirmado
-                              </span>
-                            ) : (
-                              <span className="bg-amber-50 text-amber-750 font-bold text-[10px] px-2.5 py-1 rounded-full border border-amber-150 flex items-center gap-1.5 w-fit select-none">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse"></span>
-                                Pendiente
-                              </span>
-                            )}
+                            <div className="flex flex-col gap-1.5 items-start">
+                              {ap.status === 'Confirmed' ? (
+                                <span className="bg-rose-50 text-[#da4d73] font-bold text-[10px] px-2.5 py-1 rounded-full border border-rose-100 flex items-center gap-1 w-fit select-none">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#da4d73] inline-block animate-ping"></span>
+                                  Confirmado
+                                </span>
+                              ) : (
+                                <span className="bg-amber-50 text-amber-750 font-bold text-[10px] px-2.5 py-1 rounded-full border border-amber-150 flex items-center gap-1.5 w-fit select-none">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse"></span>
+                                  Pendiente
+                                </span>
+                              )}
+                              {ap.paymentGuaranteeStatus === 'secured' && (
+                                <span className="bg-emerald-50 text-emerald-700 font-bold text-[9px] px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1 w-fit select-none">
+                                  <CreditCard className="w-3 h-3" />
+                                  Tarjeta guardada
+                                </span>
+                              )}
+                              {ap.paymentGuaranteeStatus === 'charged' && (
+                                <span className="bg-stone-100 text-stone-700 font-bold text-[9px] px-2 py-0.5 rounded-full border border-stone-200 w-fit select-none">
+                                  No-show cobrado
+                                </span>
+                              )}
+                              {ap.paymentGuaranteeStatus === 'charge_failed' && (
+                                <span className="bg-rose-50 text-rose-700 font-bold text-[9px] px-2 py-0.5 rounded-full border border-rose-200 w-fit select-none">
+                                  Cobro fallido
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Menu Actions options */}
@@ -665,6 +685,16 @@ export default function DashboardView({
                                     className="w-full text-left px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-colors text-[11px] font-bold text-stone-800 cursor-pointer"
                                   >
                                     Revertir Estado
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      onChargeNoShow(ap.id);
+                                      setActiveActionMenuId(null);
+                                    }}
+                                    disabled={!ap.stripeCustomerId || !ap.stripePaymentMethodId || ap.paymentGuaranteeStatus === 'charged'}
+                                    className="w-full text-left px-2 py-1.5 hover:bg-purple-50 text-purple-700 rounded-lg transition-colors text-[11px] font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                  >
+                                    <CreditCard className="w-3.5 h-3.5" /> Cobrar no-show
                                   </button>
                                   <button
                                     onClick={() => {

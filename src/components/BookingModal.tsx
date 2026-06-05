@@ -3,9 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Calendar, Clock, Sparkles, Check, Scissors, User } from 'lucide-react';
+import {
+  AlertCircle,
+  Calendar,
+  Check,
+  Clock,
+  CreditCard,
+  Mail,
+  Scissors,
+  ShieldCheck,
+  Sparkles,
+  User,
+  X
+} from 'lucide-react';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { SERVICES } from '../data';
 import { Appointment } from '../types';
 
@@ -15,36 +29,97 @@ interface BookingModalProps {
   onBook: (appointment: Omit<Appointment, 'id' | 'clientInitials' | 'avatarColor'>) => void;
 }
 
+const NO_SHOW_FEE_EUR = 40;
+
 export default function BookingModal({ isOpen, onClose, onBook }: BookingModalProps) {
   const [clientName, setClientName] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [selectedService, setSelectedService] = useState(SERVICES[0].name);
   const [selectedDate, setSelectedDate] = useState('2024-10-24');
   const [selectedTime, setSelectedTime] = useState('11:00 AM');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [clientSecret, setClientSecret] = useState('');
+  const [setupCustomerId, setSetupCustomerId] = useState('');
+  const [isPreparingPayment, setIsPreparingPayment] = useState(false);
+  const [paymentSetupError, setPaymentSetupError] = useState('');
 
-  const times = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '12:30 PM',
-    '01:00 PM', '02:00 PM', '03:00 PM', '04:30 PM', '05:30 PM'
-  ];
+  const times = ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '12:30 PM', '01:00 PM', '02:00 PM', '03:00 PM', '04:30 PM', '05:30 PM'];
+  const selectedServiceDetails = SERVICES.find(s => s.name === selectedService) || SERVICES[0];
+  const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+  const stripePromise = useMemo(() => stripePublishableKey ? loadStripe(stripePublishableKey) : null, [stripePublishableKey]);
+  const elementsOptions = useMemo<StripeElementsOptions | undefined>(() => {
+    if (!clientSecret) return undefined;
+    return {
+      clientSecret,
+      appearance: {
+        theme: 'stripe',
+        variables: {
+          colorPrimary: '#da4d73',
+          borderRadius: '12px',
+          fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif'
+        }
+      }
+    };
+  }, [clientSecret]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clientName.trim()) return;
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!stripePublishableKey) {
+      setPaymentSetupError('Falta configurar VITE_STRIPE_PUBLISHABLE_KEY.');
+      return;
+    }
 
-    // Trigger callback
+    const controller = new AbortController();
+    setIsPreparingPayment(true);
+    setPaymentSetupError('');
+    setClientSecret('');
+    setSetupCustomerId('');
+
+    fetch('/api/create-setup-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        appointmentDate: selectedDate,
+        appointmentTime: selectedTime,
+        service: selectedService,
+        noShowFeeAmount: NO_SHOW_FEE_EUR * 100
+      }),
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'No se pudo preparar la garantia de pago.');
+        setClientSecret(payload.clientSecret);
+        setSetupCustomerId(payload.customerId);
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') setPaymentSetupError(error.message);
+      })
+      .finally(() => setIsPreparingPayment(false));
+
+    return () => controller.abort();
+  }, [isOpen, selectedDate, selectedTime, selectedService, stripePublishableKey]);
+
+  const completeBooking = (stripePaymentMethodId: string) => {
     onBook({
       clientName: clientName.trim(),
+      clientEmail: clientEmail.trim(),
       service: selectedService,
       time: selectedTime,
       date: selectedDate,
       status: 'Pending',
-      price: SERVICES.find(s => s.name === selectedService)?.price || 50
+      price: selectedServiceDetails.price,
+      stripeCustomerId: setupCustomerId,
+      stripePaymentMethodId,
+      paymentGuaranteeStatus: 'secured',
+      noShowFeeAmount: NO_SHOW_FEE_EUR
     });
 
     setIsSuccess(true);
     setTimeout(() => {
       setIsSuccess(false);
       setClientName('');
+      setClientEmail('');
       onClose();
     }, 1800);
   };
@@ -53,7 +128,6 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-          {/* Backdrop */}
           <motion.div
             id="modal-backdrop"
             initial={{ opacity: 0 }}
@@ -63,7 +137,6 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
             className="fixed inset-0 bg-stone-950/40 backdrop-blur-md z-0"
           />
 
-          {/* Modal Content */}
           <motion.div
             id="booking-modal-card"
             initial={{ scale: 0.95, y: 20, opacity: 0 }}
@@ -73,174 +146,276 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
           >
             {isSuccess ? (
               <div className="p-12 text-center flex flex-col items-center justify-center bg-gradient-to-b from-rose-50 to-transparent">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="w-16 h-16 bg-[#da4d73] rounded-full flex items-center justify-center text-white mb-6 border border-rose-150 shadow-[0_0_15px_rgba(218,77,115,0.4)]"
-                >
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-16 h-16 bg-[#da4d73] rounded-full flex items-center justify-center text-white mb-6 border border-rose-150 shadow-[0_0_15px_rgba(218,77,115,0.4)]">
                   <Check className="w-8 h-8 font-extrabold" />
                 </motion.div>
-                <h3 className="font-serif text-2xl text-stone-900 font-bold mb-2">¡Reserva Solicitada con éxito!</h3>
+                <h3 className="font-serif text-2xl text-stone-900 font-bold mb-2">Reserva solicitada con exito</h3>
                 <p className="font-sans text-xs text-stone-650 max-w-sm leading-relaxed">
-                  Hemos agendado tu cita de <span className="font-bold text-[#da4d73]">{selectedService}</span> para el <span className="font-bold text-stone-900">{selectedDate}</span> a las <span className="font-bold text-stone-900">{selectedTime}</span>.
+                  Tu tarjeta queda guardada de forma segura en Stripe como garantia. Hemos agendado tu cita de <span className="font-bold text-[#da4d73]">{selectedService}</span> para el <span className="font-bold text-stone-900">{selectedDate}</span> a las <span className="font-bold text-stone-900">{selectedTime}</span>.
                 </p>
               </div>
             ) : (
               <div className="p-6 md:p-8">
-                {/* Header */}
                 <div className="flex justify-between items-center mb-6">
                   <div>
                     <h3 className="font-serif text-2xl text-[#da4d73] flex items-center gap-2 font-bold">
                       <Sparkles className="w-6 h-6 text-[#da4d73] fill-[#da4d73]/20" />
                       Pedir Cita Online
                     </h3>
-                    <p className="font-sans text-xs text-stone-500 mt-1">Reserva tu tratamiento favorito de forma rápida y sencilla.</p>
+                    <p className="font-sans text-xs text-stone-500 mt-1">Reserva con tarjeta de garantia para proteger la agenda del salon.</p>
                   </div>
-                  <button
-                    id="close-booking-btn"
-                    onClick={onClose}
-                    className="p-1.5 rounded-lg hover:bg-rose-50 transition-colors text-stone-450 hover:text-stone-800 cursor-pointer"
-                  >
+                  <button id="close-booking-btn" onClick={onClose} className="p-1.5 rounded-lg hover:bg-rose-50 transition-colors text-stone-450 hover:text-stone-800 cursor-pointer">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* Client Name */}
-                  <div>
-                    <label id="label-client-name" className="block font-sans text-xs uppercase tracking-wider text-stone-500 mb-2 font-bold">
-                      Nombre Completo
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <input
-                        id="input-client-name"
-                        type="text"
-                        required
-                        value={clientName}
-                        onChange={(e) => setClientName(e.target.value)}
-                        placeholder="Ej. Carmen Soler"
-                        className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-rose-150 focus:outline-[#da4d73] focus:border-[#da4d73] focus:ring-1 focus:ring-[#da4d73] transition-all text-xs text-stone-800 placeholder:text-stone-400 font-sans shadow-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Treatment Choice */}
-                  <div>
-                    <label id="label-service" className="block font-sans text-xs uppercase tracking-wider text-stone-500 mb-2 font-bold">
-                      Seleccionar Servicio
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
-                        <Scissors className="w-4 h-4" />
-                      </div>
-                      <select
-                        id="select-service-booking"
-                        value={selectedService}
-                        onChange={(e) => setSelectedService(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-rose-150 focus:outline-[#da4d73] focus:border-[#da4d73] focus:ring-1 focus:ring-[#da4d73] transition-all text-xs text-stone-800 appearance-none font-sans cursor-pointer shadow-sm"
-                      >
-                        {SERVICES.map((s) => (
-                          <option key={s.id} value={s.name} className="bg-white text-stone-800 font-sans text-xs p-2">
-                            {s.name} — €{s.price} ({s.duration})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Date and Time Fields Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Date picker */}
-                    <div>
-                      <label id="label-date" className="block font-sans text-xs uppercase tracking-wider text-stone-500 mb-2 font-bold">
-                        Fecha
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
-                          <Calendar className="w-4 h-4" />
-                        </div>
-                        <input
-                          id="input-booking-date"
-                          type="date"
-                          required
-                          value={selectedDate}
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-rose-150 focus:outline-[#da4d73] focus:border-[#da4d73] focus:ring-1 focus:ring-[#da4d73] text-xs text-stone-800 font-sans [color-scheme:light] shadow-sm"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Time picker list */}
-                    <div>
-                      <label id="label-time" className="block font-sans text-xs uppercase tracking-wider text-stone-500 mb-2 font-bold">
-                        Hora
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
-                          <Clock className="w-4 h-4" />
-                        </div>
-                        <select
-                          id="select-booking-time"
-                          value={selectedTime}
-                          onChange={(e) => setSelectedTime(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 bg-white rounded-xl border border-rose-150 focus:outline-[#da4d73] focus:border-[#da4d73] focus:ring-1 focus:ring-[#da4d73] text-xs text-stone-800 appearance-none font-sans cursor-pointer shadow-sm"
-                        >
-                          {times.map((t) => (
-                            <option key={t} value={t} className="bg-white text-stone-800 text-xs">
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Summary Box */}
-                  <div className="bg-rose-50/40 rounded-xl p-4 border border-rose-100 text-stone-800">
-                    <h4 className="font-sans text-xs text-stone-800 uppercase tracking-wider mb-2 font-bold">Resumen del Ritual</h4>
-                    <div className="space-y-1.5 text-xs text-stone-600 font-sans">
-                      <div className="flex justify-between">
-                        <span>Tratamiento:</span>
-                        <span className="font-bold text-stone-800">{selectedService}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Precio estimado:</span>
-                        <span className="font-bold text-[#da4d73]">€{SERVICES.find(s => s.name === selectedService)?.price}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Fecha y hora:</span>
-                        <span className="font-mono text-stone-850 font-bold">{selectedDate} @ {selectedTime}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* CTAs */}
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      id="cancel-booking-btn"
-                      type="button"
-                      onClick={onClose}
-                      className="flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-full border border-rose-150 hover:bg-rose-50 text-stone-600 transition-colors cursor-pointer bg-white"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      id="submit-booking-btn"
-                      type="submit"
-                      className="flex-1 bg-[#da4d73] text-white py-3 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-rose-600 active:scale-95 transition-all shadow-lg shadow-rose-500/20 text-center cursor-pointer"
-                    >
-                      Confirmar Reserva
-                    </button>
-                  </div>
-                </form>
+                <PaymentBookingForm
+                  clientName={clientName}
+                  clientEmail={clientEmail}
+                  selectedService={selectedService}
+                  selectedDate={selectedDate}
+                  selectedTime={selectedTime}
+                  times={times}
+                  isPreparingPayment={isPreparingPayment}
+                  paymentSetupError={paymentSetupError}
+                  stripePromise={stripePromise}
+                  elementsOptions={elementsOptions}
+                  clientSecret={clientSecret}
+                  selectedPrice={selectedServiceDetails.price}
+                  onClientNameChange={setClientName}
+                  onClientEmailChange={setClientEmail}
+                  onSelectedServiceChange={setSelectedService}
+                  onSelectedDateChange={setSelectedDate}
+                  onSelectedTimeChange={setSelectedTime}
+                  onCancel={onClose}
+                  onCompleteBooking={completeBooking}
+                />
               </div>
             )}
           </motion.div>
         </div>
       )}
     </AnimatePresence>
+  );
+}
+
+interface PaymentBookingFormProps {
+  clientName: string;
+  clientEmail: string;
+  selectedService: string;
+  selectedDate: string;
+  selectedTime: string;
+  times: string[];
+  isPreparingPayment: boolean;
+  paymentSetupError: string;
+  stripePromise: ReturnType<typeof loadStripe> | null;
+  elementsOptions?: StripeElementsOptions;
+  clientSecret: string;
+  selectedPrice: number;
+  onClientNameChange: (value: string) => void;
+  onClientEmailChange: (value: string) => void;
+  onSelectedServiceChange: (value: string) => void;
+  onSelectedDateChange: (value: string) => void;
+  onSelectedTimeChange: (value: string) => void;
+  onCancel: () => void;
+  onCompleteBooking: (paymentMethodId: string) => void;
+}
+
+function PaymentBookingForm(props: PaymentBookingFormProps) {
+  if (!props.stripePromise || !props.clientSecret || !props.elementsOptions) {
+    return <BookingFields {...props} paymentElement={null} isPaymentReady={false} />;
+  }
+
+  return (
+    <Elements stripe={props.stripePromise} options={props.elementsOptions}>
+      <StripeBookingFields {...props} />
+    </Elements>
+  );
+}
+
+function StripeBookingFields(props: PaymentBookingFormProps) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError('');
+    if (!stripe || !elements || !props.clientName.trim() || !props.clientEmail.trim()) return;
+
+    setIsSubmitting(true);
+    const result = await stripe.confirmSetup({
+      elements,
+      confirmParams: {
+        payment_method_data: {
+          billing_details: {
+            name: props.clientName.trim(),
+            email: props.clientEmail.trim()
+          }
+        }
+      },
+      redirect: 'if_required'
+    });
+    setIsSubmitting(false);
+
+    if (result.error) {
+      setSubmitError(result.error.message || 'No se pudo validar la tarjeta.');
+      return;
+    }
+
+    const paymentMethodId = typeof result.setupIntent?.payment_method === 'string'
+      ? result.setupIntent.payment_method
+      : result.setupIntent?.payment_method?.id;
+
+    if (!paymentMethodId) {
+      setSubmitError('Stripe no devolvio un metodo de pago reutilizable.');
+      return;
+    }
+
+    props.onCompleteBooking(paymentMethodId);
+  };
+
+  return (
+    <BookingFields
+      {...props}
+      paymentElement={<PaymentElement options={{ layout: 'tabs' }} />}
+      submitError={submitError}
+      isPaymentReady={Boolean(stripe && elements)}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit}
+    />
+  );
+}
+
+interface BookingFieldsProps extends PaymentBookingFormProps {
+  paymentElement: React.ReactNode;
+  submitError?: string;
+  isPaymentReady: boolean;
+  isSubmitting?: boolean;
+  onSubmit?: (e: React.FormEvent) => void;
+}
+
+function BookingFields({
+  clientName,
+  clientEmail,
+  selectedService,
+  selectedDate,
+  selectedTime,
+  times,
+  isPreparingPayment,
+  paymentSetupError,
+  paymentElement,
+  submitError,
+  isPaymentReady,
+  isSubmitting = false,
+  selectedPrice,
+  onClientNameChange,
+  onClientEmailChange,
+  onSelectedServiceChange,
+  onSelectedDateChange,
+  onSelectedTimeChange,
+  onCancel,
+  onSubmit
+}: BookingFieldsProps) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-5">
+      <InputBlock label="Nombre Completo" icon={<User className="w-4 h-4" />}>
+        <input id="input-client-name" type="text" required value={clientName} onChange={(e) => onClientNameChange(e.target.value)} placeholder="Ej. Carmen Soler" className="booking-input" />
+      </InputBlock>
+
+      <InputBlock label="Email" icon={<Mail className="w-4 h-4" />}>
+        <input id="input-client-email" type="email" required value={clientEmail} onChange={(e) => onClientEmailChange(e.target.value)} placeholder="carmen@email.com" className="booking-input" />
+      </InputBlock>
+
+      <InputBlock label="Seleccionar Servicio" icon={<Scissors className="w-4 h-4" />}>
+        <select id="select-service-booking" value={selectedService} onChange={(e) => onSelectedServiceChange(e.target.value)} className="booking-input appearance-none cursor-pointer">
+          {SERVICES.map((s) => (
+            <option key={s.id} value={s.name} className="bg-white text-stone-800 font-sans text-xs p-2">
+              {s.name} - EUR {s.price} ({s.duration})
+            </option>
+          ))}
+        </select>
+      </InputBlock>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <InputBlock label="Fecha" icon={<Calendar className="w-4 h-4" />}>
+          <input id="input-booking-date" type="date" required value={selectedDate} onChange={(e) => onSelectedDateChange(e.target.value)} className="booking-input [color-scheme:light]" />
+        </InputBlock>
+        <InputBlock label="Hora" icon={<Clock className="w-4 h-4" />}>
+          <select id="select-booking-time" value={selectedTime} onChange={(e) => onSelectedTimeChange(e.target.value)} className="booking-input appearance-none cursor-pointer">
+            {times.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </InputBlock>
+      </div>
+
+      <div className="bg-rose-50/40 rounded-xl p-4 border border-rose-100 text-stone-800">
+        <h4 className="font-sans text-xs text-stone-800 uppercase tracking-wider mb-2 font-bold">Resumen de reserva</h4>
+        <div className="space-y-1.5 text-xs text-stone-600 font-sans">
+          <div className="flex justify-between gap-4"><span>Tratamiento:</span><span className="font-bold text-stone-800 text-right">{selectedService}</span></div>
+          <div className="flex justify-between"><span>Precio estimado:</span><span className="font-bold text-[#da4d73]">EUR {selectedPrice}</span></div>
+          <div className="flex justify-between"><span>Fecha y hora:</span><span className="font-mono text-stone-850 font-bold">{selectedDate} @ {selectedTime}</span></div>
+          <div className="flex justify-between"><span>Penalizacion no-show:</span><span className="font-bold text-stone-800">EUR {NO_SHOW_FEE_EUR}</span></div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-4 border border-rose-150 shadow-sm">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#da4d73] shrink-0">
+            <CreditCard className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="font-sans text-xs text-stone-800 uppercase tracking-wider font-bold">Tarjeta de garantia</h4>
+            <p className="text-[11px] text-stone-500 leading-relaxed mt-1">
+              No se cobra ahora. Si el cliente no asiste o incumple la politica de cancelacion, podras cobrar la penalizacion autorizada desde Stripe.
+            </p>
+          </div>
+        </div>
+
+        {isPreparingPayment && <StatusBox>Preparando pago seguro con Stripe...</StatusBox>}
+        {paymentSetupError && <StatusBox danger>{paymentSetupError}</StatusBox>}
+        {paymentElement}
+
+        <label className="mt-3 flex items-start gap-2 text-[11px] text-stone-600 leading-relaxed">
+          <input type="checkbox" required className="mt-0.5 accent-[#da4d73]" />
+          <span>Autorizo guardar mi tarjeta en Stripe para esta reserva y cobrar la penalizacion de no-show indicada si corresponde.</span>
+        </label>
+      </div>
+
+      {submitError && <StatusBox danger>{submitError}</StatusBox>}
+
+      <div className="flex gap-3 pt-2">
+        <button id="cancel-booking-btn" type="button" onClick={onCancel} className="flex-1 py-3 text-xs font-bold uppercase tracking-wider rounded-full border border-rose-150 hover:bg-rose-50 text-stone-600 transition-colors cursor-pointer bg-white">
+          Cancelar
+        </button>
+        <button id="submit-booking-btn" type="submit" disabled={!isPaymentReady || isPreparingPayment || isSubmitting || Boolean(paymentSetupError)} className="flex-1 bg-[#da4d73] text-white py-3 rounded-full text-xs font-bold uppercase tracking-wider hover:bg-rose-600 active:scale-95 transition-all shadow-lg shadow-rose-500/20 text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <span className="inline-flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            {isSubmitting ? 'Validando...' : 'Confirmar Reserva'}
+          </span>
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function InputBlock({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block font-sans text-xs uppercase tracking-wider text-stone-500 mb-2 font-bold">{label}</label>
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">{icon}</div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function StatusBox({ children, danger = false }: { children: React.ReactNode; danger?: boolean }) {
+  return (
+    <div className={`text-xs rounded-xl p-3 flex gap-2 ${danger ? 'text-rose-700 bg-rose-50 border border-rose-200' : 'text-stone-500 bg-rose-50/50 border border-rose-100'}`}>
+      {danger && <AlertCircle className="w-4 h-4 shrink-0" />}
+      <span>{children}</span>
+    </div>
   );
 }

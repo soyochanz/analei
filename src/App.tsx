@@ -97,6 +97,55 @@ export default function App() {
     setAppointments(prev => prev.filter(ap => ap.id !== id));
   };
 
+  const handleChargeNoShow = async (id: string) => {
+    const appointment = appointments.find(ap => ap.id === id);
+    if (!appointment) return;
+
+    if (!appointment.stripeCustomerId || !appointment.stripePaymentMethodId) {
+      alert('Esta cita no tiene una tarjeta de garantia guardada en Stripe.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/charge-no-show', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          clientName: appointment.clientName,
+          customerId: appointment.stripeCustomerId,
+          paymentMethodId: appointment.stripePaymentMethodId,
+          amount: (appointment.noShowFeeAmount || 40) * 100
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'No se pudo cobrar el no-show.');
+      }
+
+      setAppointments(prev =>
+        prev.map(ap =>
+          ap.id === id
+            ? {
+                ...ap,
+                paymentGuaranteeStatus: 'charged',
+                noShowChargeId: payload.paymentIntentId
+              }
+            : ap
+        )
+      );
+      alert(`Cargo no-show realizado correctamente: ${payload.paymentIntentId}`);
+    } catch (error) {
+      setAppointments(prev =>
+        prev.map(ap =>
+          ap.id === id ? { ...ap, paymentGuaranteeStatus: 'charge_failed' } : ap
+        )
+      );
+      alert(error instanceof Error ? error.message : 'No se pudo cobrar el no-show.');
+    }
+  };
+
   // Helper function to handle reading tip articles
   const handleReadArticle = (article: Article) => {
     setSelectedArticle(article);
@@ -127,6 +176,7 @@ export default function App() {
               appointments={appointments}
               onToggleStatus={handleToggleStatus}
               onDeleteAppointment={handleDeleteAppointment}
+              onChargeNoShow={handleChargeNoShow}
               onOpenBooking={() => setIsBookingOpen(true)}
             />
           ) : (
