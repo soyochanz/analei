@@ -20,7 +20,13 @@ export async function invokeFunction<T>(name: string, body: unknown): Promise<T>
   }
 
   const { data, error } = await supabase.functions.invoke(name, { body });
-  if (error) throw error;
+  if (error) {
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      const payload = await context.json().catch(() => null);
+      if (payload?.error) throw new Error(payload.error);
+    }
+    throw error;
+  }
   return data as T;
 }
-

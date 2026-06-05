@@ -33,7 +33,7 @@ interface DashboardViewProps {
   appointments: Appointment[];
   onToggleStatus: (id: string) => void;
   onDeleteAppointment: (id: string) => void;
-  onChargeNoShow: (id: string) => void;
+  onChargeNoShow: (id: string) => Promise<void>;
   onOpenBooking: () => void;
 }
 
@@ -49,6 +49,7 @@ export default function DashboardView({
   const [selectedNav, setSelectedNav] = useState<string>('dashboard');
   const [activeTableFilter, setActiveTableFilter] = useState<'all' | 'date-only' | 'pending-only'>('date-only');
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+  const [processingNoShowId, setProcessingNoShowId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Month of October 2024 helper days (week starts on Monday 30th Sep)
@@ -105,6 +106,32 @@ export default function DashboardView({
 
   const displayedAppointments = getFilteredAppointments();
   const pendingRequestsCount = appointments.filter(a => a.status === 'Pending').length;
+
+  const handleNoShowCharge = async (ap: Appointment) => {
+    const amount = ap.noShowFeeAmount || 40;
+    const canCharge = Boolean(ap.stripeCustomerId && ap.stripePaymentMethodId);
+
+    if (!canCharge) {
+      alert('Esta cita no tiene tarjeta de garantia. Solo se pueden cobrar no-shows de reservas creadas con Stripe.');
+      return;
+    }
+
+    if (ap.paymentGuaranteeStatus === 'charged') {
+      alert('Esta cita ya tiene un cargo no-show registrado.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Marcar a ${ap.clientName} como no-show y cobrar EUR ${amount}?`);
+    if (!confirmed) return;
+
+    setProcessingNoShowId(ap.id);
+    try {
+      await onChargeNoShow(ap.id);
+    } finally {
+      setProcessingNoShowId(null);
+      setActiveActionMenuId(null);
+    }
+  };
   
   // Format selected date string for table readable header
   const getReadableTableHeader = () => {
@@ -618,7 +645,15 @@ export default function DashboardView({
                           {/* Status and confirming actions */}
                           <td className="py-4 px-2">
                             <div className="flex flex-col gap-1.5 items-start">
-                              {ap.status === 'Confirmed' ? (
+                              {ap.status === 'NoShow' ? (
+                                <span className="bg-stone-900 text-white font-bold text-[10px] px-2.5 py-1 rounded-full border border-stone-900 flex items-center gap-1 w-fit select-none">
+                                  No-show
+                                </span>
+                              ) : ap.status === 'Cancelled' ? (
+                                <span className="bg-stone-100 text-stone-600 font-bold text-[10px] px-2.5 py-1 rounded-full border border-stone-200 flex items-center gap-1 w-fit select-none">
+                                  Cancelada
+                                </span>
+                              ) : ap.status === 'Confirmed' ? (
                                 <span className="bg-rose-50 text-[#da4d73] font-bold text-[10px] px-2.5 py-1 rounded-full border border-rose-100 flex items-center gap-1 w-fit select-none">
                                   <span className="w-1.5 h-1.5 rounded-full bg-[#da4d73] inline-block animate-ping"></span>
                                   Confirmado
@@ -664,6 +699,17 @@ export default function DashboardView({
                                   <Check className="w-4 h-4" />
                                 </button>
                               )}
+                              {ap.stripeCustomerId && ap.stripePaymentMethodId && ap.paymentGuaranteeStatus !== 'charged' && (
+                                <button
+                                  onClick={() => handleNoShowCharge(ap)}
+                                  disabled={processingNoShowId === ap.id}
+                                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-purple-700 hover:bg-purple-50 rounded-lg transition-colors cursor-pointer border border-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title={`Marcar no-show y cobrar EUR ${ap.noShowFeeAmount || 40}`}
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  {processingNoShowId === ap.id ? 'Cobrando' : 'No-show'}
+                                </button>
+                              )}
                               
                               <button
                                 onClick={() => {
@@ -687,14 +733,12 @@ export default function DashboardView({
                                     Revertir Estado
                                   </button>
                                   <button
-                                    onClick={() => {
-                                      onChargeNoShow(ap.id);
-                                      setActiveActionMenuId(null);
-                                    }}
-                                    disabled={!ap.stripeCustomerId || !ap.stripePaymentMethodId || ap.paymentGuaranteeStatus === 'charged'}
+                                    onClick={() => handleNoShowCharge(ap)}
+                                    disabled={!ap.stripeCustomerId || !ap.stripePaymentMethodId || ap.paymentGuaranteeStatus === 'charged' || processingNoShowId === ap.id}
                                     className="w-full text-left px-2 py-1.5 hover:bg-purple-50 text-purple-700 rounded-lg transition-colors text-[11px] font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                   >
-                                    <CreditCard className="w-3.5 h-3.5" /> Cobrar no-show
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    {processingNoShowId === ap.id ? 'Cobrando...' : `No-show + EUR ${ap.noShowFeeAmount || 40}`}
                                   </button>
                                   <button
                                     onClick={() => {

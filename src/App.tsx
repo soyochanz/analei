@@ -17,6 +17,56 @@ import FreshaSimulationView from './components/FreshaSimulationView';
 import AgencyInfoModal from './components/AgencyInfoModal';
 import { invokeFunction } from './lib/supabase';
 
+type DbAppointment = {
+  id: string;
+  client_name: string;
+  client_email?: string;
+  service_name: string;
+  appointment_time: string;
+  appointment_date: string;
+  status: Appointment['status'];
+  price_cents: number;
+  stripe_customer_id?: string;
+  stripe_payment_method_id?: string;
+  payment_guarantee_status?: Appointment['paymentGuaranteeStatus'];
+  no_show_fee_cents?: number;
+  no_show_charge_id?: string;
+};
+
+const avatarColorCombos = [
+  'bg-rose-50 text-[#da4d73] border border-rose-100',
+  'bg-purple-50 text-[#a855f7] border border-purple-150',
+  'bg-pink-50 text-pink-600 border border-pink-100',
+  'bg-teal-50 text-teal-700 border border-teal-100',
+  'bg-amber-50 text-amber-700 border border-amber-100'
+];
+
+const getInitials = (clientName: string) =>
+  clientName
+    .split(' ')
+    .slice(0, 2)
+    .map(part => part[0])
+    .join('')
+    .toUpperCase() || 'CX';
+
+const appointmentFromDb = (ap: DbAppointment, index: number): Appointment => ({
+  id: ap.id,
+  clientName: ap.client_name,
+  clientEmail: ap.client_email,
+  clientInitials: getInitials(ap.client_name),
+  service: ap.service_name,
+  time: ap.appointment_time,
+  date: ap.appointment_date,
+  status: ap.status,
+  price: Math.round(ap.price_cents / 100),
+  stripeCustomerId: ap.stripe_customer_id,
+  stripePaymentMethodId: ap.stripe_payment_method_id,
+  paymentGuaranteeStatus: ap.payment_guarantee_status,
+  noShowFeeAmount: Math.round((ap.no_show_fee_cents || 4000) / 100),
+  noShowChargeId: ap.no_show_charge_id,
+  avatarColor: avatarColorCombos[index % avatarColorCombos.length]
+});
+
 export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [activeView, setActiveView] = useState<'client' | 'admin' | 'fresha'>('client');
@@ -38,6 +88,23 @@ export default function App() {
   }, [appointments]);
 
   useEffect(() => {
+    invokeFunction<{ appointments: DbAppointment[] }>('list-appointments', {})
+      .then(({ appointments: savedAppointments }) => {
+        if (!savedAppointments.length) return;
+        setAppointments(prev => {
+          const demoAppointments = prev.filter(ap => !savedAppointments.some(saved => saved.id === ap.id));
+          return [
+            ...savedAppointments.map(appointmentFromDb),
+            ...demoAppointments
+          ];
+        });
+      })
+      .catch(error => {
+        console.warn('No se pudieron cargar las citas de Supabase:', error);
+      });
+  }, []);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = visualTheme;
     try {
       window.localStorage.setItem('maria-visual-theme', visualTheme);
@@ -51,28 +118,13 @@ export default function App() {
     newAp: Omit<Appointment, 'clientInitials' | 'avatarColor'>
   ) => {
     // Generate simple initials
-    const initials = newAp.clientName
-      .split(' ')
-      .slice(0, 2)
-      .map(part => part[0])
-      .join('')
-      .toUpperCase() || 'CX';
-
-    // Cycle gorgeous glowing bright pink/rose/lavender combinations for light glassmorphism avatars
-    const colorCombos = [
-      'bg-rose-50 text-[#da4d73] border border-rose-100',
-      'bg-purple-50 text-[#a855f7] border border-purple-150',
-      'bg-pink-50 text-pink-600 border border-pink-100',
-      'bg-teal-50 text-teal-700 border border-teal-100',
-      'bg-amber-50 text-amber-700 border border-amber-100'
-    ];
-    const randomIndex = Math.floor(Math.random() * colorCombos.length);
+    const randomIndex = Math.floor(Math.random() * avatarColorCombos.length);
 
     const fullAppointment: Appointment = {
       ...newAp,
       id: newAp.id || `new-${Date.now()}`,
-      clientInitials: initials,
-      avatarColor: colorCombos[randomIndex]
+      clientInitials: getInitials(newAp.clientName),
+      avatarColor: avatarColorCombos[randomIndex]
     };
 
     setAppointments(prev => [fullAppointment, ...prev]);
@@ -132,7 +184,7 @@ export default function App() {
             : ap
         )
       );
-      alert(`Cargo no-show realizado correctamente: ${payload.paymentIntentId}`);
+      alert(`No-show marcado y cargo realizado correctamente: ${payload.paymentIntentId}`);
     } catch (error) {
       setAppointments(prev =>
         prev.map(ap =>
