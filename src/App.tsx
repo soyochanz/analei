@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Calendar, Heart, ShieldCheck, ChevronRight, User, Scissors } from 'lucide-react';
+import { Sparkles, ShieldCheck, ChevronRight } from 'lucide-react';
 import { INITIAL_APPOINTMENTS } from './data';
 import { Appointment, Article } from './types';
 import ClientPortalView from './components/ClientPortalView';
@@ -15,7 +15,7 @@ import BlogReaderModal from './components/BlogReaderModal';
 import AdminGateSelector from './components/AdminGateSelector';
 import FreshaSimulationView from './components/FreshaSimulationView';
 import AgencyInfoModal from './components/AgencyInfoModal';
-import { invokeFunction } from './lib/supabase';
+import { invokeFunction, supabase } from './lib/supabase';
 
 type DbAppointment = {
   id: string;
@@ -81,6 +81,45 @@ export default function App() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [isAdminGateOpen, setIsAdminGateOpen] = useState(false);
   const [isAgencyInfoOpen, setIsAgencyInfoOpen] = useState(false);
+  const [adminSession, setAdminSession] = useState<any>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => setAdminSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => setAdminSession(session));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  const handleAdminAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) {
+      alert('Falta configurar Supabase.');
+      return;
+    }
+    const result = authMode === 'login'
+      ? await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
+      : await supabase.auth.signUp({ email: authEmail, password: authPassword });
+    if (result.error) {
+      alert(result.error.message);
+      return;
+    }
+    if (authMode === 'register') {
+      await invokeFunction('admin-panel', {
+        action: 'upsert_staff',
+        staff: {
+          auth_user_id: result.data.user?.id,
+          email: authEmail,
+          name: authEmail.split('@')[0],
+          role: 'admin',
+          is_admin: true
+        }
+      }).catch(() => undefined);
+    }
+    setAdminSession(result.data.session);
+  };
 
   // Sync state or log newly updated appointments
   useEffect(() => {
@@ -221,6 +260,17 @@ export default function App() {
               onToggleVisualTheme={() => setVisualTheme(prev => prev === 'color' ? 'mono' : 'color')}
             />
           ) : activeView === 'admin' ? (
+            !adminSession ? (
+              <AdminLogin
+                email={authEmail}
+                password={authPassword}
+                mode={authMode}
+                setEmail={setAuthEmail}
+                setPassword={setAuthPassword}
+                setMode={setAuthMode}
+                onSubmit={handleAdminAuth}
+              />
+            ) : (
             <DashboardView
               appointments={appointments}
               onToggleStatus={handleToggleStatus}
@@ -228,6 +278,7 @@ export default function App() {
               onChargeNoShow={handleChargeNoShow}
               onOpenBooking={() => setIsBookingOpen(true)}
             />
+            )
           ) : (
             <FreshaSimulationView
               onBackToClient={() => setActiveView('client')}
@@ -343,6 +394,39 @@ export default function App() {
         onClose={() => setIsAgencyInfoOpen(false)}
       />
 
+    </div>
+  );
+}
+
+function AdminLogin({
+  email,
+  password,
+  mode,
+  setEmail,
+  setPassword,
+  setMode,
+  onSubmit
+}: {
+  email: string;
+  password: string;
+  mode: 'login' | 'register';
+  setEmail: (value: string) => void;
+  setPassword: (value: string) => void;
+  setMode: (value: 'login' | 'register') => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  return (
+    <div className="min-h-screen bg-[#fff8f8] flex items-center justify-center p-6">
+      <form onSubmit={onSubmit} className="w-full max-w-md bg-white border border-rose-100 rounded-2xl shadow-sm p-8">
+        <h2 className="font-serif text-3xl font-bold text-[#da4d73] mb-2">Acceso admin</h2>
+        <p className="text-xs text-stone-500 mb-6">{mode === 'login' ? 'Entra con email y password.' : 'Registro temporal para crear el primer admin.'}</p>
+        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full mb-3 rounded-xl border border-rose-100 px-4 py-3 text-sm outline-[#da4d73]" />
+        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full mb-5 rounded-xl border border-rose-100 px-4 py-3 text-sm outline-[#da4d73]" />
+        <button className="w-full rounded-full bg-[#da4d73] py-3 text-xs font-bold uppercase text-white">{mode === 'login' ? 'Entrar' : 'Crear admin'}</button>
+        <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="mt-3 w-full text-xs font-bold text-[#da4d73]">
+          {mode === 'login' ? 'Crear primer usuario admin' : 'Ya tengo usuario'}
+        </button>
+      </form>
     </div>
   );
 }
