@@ -11,7 +11,7 @@ export interface Appointment {
   service: string;
   time: string;
   date: string; // Format: YYYY-MM-DD
-  status: 'Confirmed' | 'Pending';
+  status: 'Confirmed' | 'Pending' | 'Cancelled' | 'NoShow';
   price: number;
   stripeCustomerId?: string;
   stripePaymentMethodId?: string;

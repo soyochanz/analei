@@ -21,12 +21,13 @@ import {
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
 import { SERVICES } from '../data';
+import { invokeFunction } from '../lib/supabase';
 import { Appointment } from '../types';
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onBook: (appointment: Omit<Appointment, 'id' | 'clientInitials' | 'avatarColor'>) => void;
+  onBook: (appointment: Omit<Appointment, 'clientInitials' | 'avatarColor'>) => void;
 }
 
 const NO_SHOW_FEE_EUR = 40;
@@ -40,6 +41,7 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
   const [isSuccess, setIsSuccess] = useState(false);
   const [clientSecret, setClientSecret] = useState('');
   const [setupCustomerId, setSetupCustomerId] = useState('');
+  const [setupServiceId, setSetupServiceId] = useState('');
   const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const [paymentSetupError, setPaymentSetupError] = useState('');
 
@@ -75,44 +77,72 @@ export default function BookingModal({ isOpen, onClose, onBook }: BookingModalPr
     setClientSecret('');
     setSetupCustomerId('');
 
-    fetch('/api/create-setup-intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    invokeFunction<{
+      clientSecret: string;
+      customerId: string;
+      serviceId: string;
+      priceCents: number;
+    }>('create-setup-intent', {
         appointmentDate: selectedDate,
         appointmentTime: selectedTime,
         service: selectedService,
         noShowFeeAmount: NO_SHOW_FEE_EUR * 100
-      }),
-      signal: controller.signal
-    })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'No se pudo preparar la garantia de pago.');
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
         setClientSecret(payload.clientSecret);
         setSetupCustomerId(payload.customerId);
+        setSetupServiceId(payload.serviceId);
       })
       .catch((error) => {
-        if (error.name !== 'AbortError') setPaymentSetupError(error.message);
+        if (!controller.signal.aborted) setPaymentSetupError(error.message);
       })
       .finally(() => setIsPreparingPayment(false));
 
     return () => controller.abort();
   }, [isOpen, selectedDate, selectedTime, selectedService, stripePublishableKey]);
 
-  const completeBooking = (stripePaymentMethodId: string) => {
-    onBook({
+  const completeBooking = async (setupIntentId: string, stripePaymentMethodId: string) => {
+    const response = await invokeFunction<{ appointment: {
+      id: string;
+      client_name: string;
+      client_email: string;
+      service_name: string;
+      appointment_time: string;
+      appointment_date: string;
+      status: Appointment['status'];
+      price_cents: number;
+      stripe_customer_id: string;
+      stripe_payment_method_id: string;
+      payment_guarantee_status: 'secured' | 'not_required' | 'charged' | 'charge_failed';
+      no_show_fee_cents: number;
+      no_show_charge_id?: string;
+    } }>('complete-booking', {
+      setupIntentId,
+      serviceId: setupServiceId,
       clientName: clientName.trim(),
       clientEmail: clientEmail.trim(),
-      service: selectedService,
-      time: selectedTime,
-      date: selectedDate,
-      status: 'Pending',
-      price: selectedServiceDetails.price,
-      stripeCustomerId: setupCustomerId,
-      stripePaymentMethodId,
-      paymentGuaranteeStatus: 'secured',
-      noShowFeeAmount: NO_SHOW_FEE_EUR
+      appointmentDate: selectedDate,
+      appointmentTime: selectedTime,
+      noShowFeeAmount: NO_SHOW_FEE_EUR * 100
+    });
+
+    const savedAppointment = response.appointment;
+
+    onBook({
+      id: savedAppointment.id,
+      clientName: savedAppointment.client_name,
+      clientEmail: savedAppointment.client_email,
+      service: savedAppointment.service_name,
+      time: savedAppointment.appointment_time,
+      date: savedAppointment.appointment_date,
+      status: savedAppointment.status,
+      price: Math.round(savedAppointment.price_cents / 100),
+      stripeCustomerId: savedAppointment.stripe_customer_id || setupCustomerId,
+      stripePaymentMethodId: savedAppointment.stripe_payment_method_id || stripePaymentMethodId,
+      paymentGuaranteeStatus: savedAppointment.payment_guarantee_status,
+      noShowFeeAmount: Math.round((savedAppointment.no_show_fee_cents || 4000) / 100),
+      noShowChargeId: savedAppointment.no_show_charge_id
     });
 
     setIsSuccess(true);
@@ -218,7 +248,7 @@ interface PaymentBookingFormProps {
   onSelectedDateChange: (value: string) => void;
   onSelectedTimeChange: (value: string) => void;
   onCancel: () => void;
-  onCompleteBooking: (paymentMethodId: string) => void;
+  onCompleteBooking: (setupIntentId: string, paymentMethodId: string) => Promise<void>;
 }
 
 function PaymentBookingForm(props: PaymentBookingFormProps) {
@@ -273,7 +303,20 @@ function StripeBookingFields(props: PaymentBookingFormProps) {
       return;
     }
 
-    props.onCompleteBooking(paymentMethodId);
+    const setupIntentId = result.setupIntent?.id;
+    if (!setupIntentId) {
+      setSubmitError('Stripe no devolvio el identificador de la garantia.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await props.onCompleteBooking(setupIntentId, paymentMethodId);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'No se pudo guardar la cita.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

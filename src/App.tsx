@@ -15,6 +15,7 @@ import BlogReaderModal from './components/BlogReaderModal';
 import AdminGateSelector from './components/AdminGateSelector';
 import FreshaSimulationView from './components/FreshaSimulationView';
 import AgencyInfoModal from './components/AgencyInfoModal';
+import { invokeFunction } from './lib/supabase';
 
 export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
@@ -47,7 +48,7 @@ export default function App() {
 
   // Handler to register a new appointment requested by client or manager
   const handleAddNewAppointment = (
-    newAp: Omit<Appointment, 'id' | 'clientInitials' | 'avatarColor'>
+    newAp: Omit<Appointment, 'clientInitials' | 'avatarColor'>
   ) => {
     // Generate simple initials
     const initials = newAp.clientName
@@ -69,7 +70,7 @@ export default function App() {
 
     const fullAppointment: Appointment = {
       ...newAp,
-      id: `new-${Date.now()}`,
+      id: newAp.id || `new-${Date.now()}`,
       clientInitials: initials,
       avatarColor: colorCombos[randomIndex]
     };
@@ -107,30 +108,26 @@ export default function App() {
     }
 
     try {
-      const response = await fetch('/api/charge-no-show', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          appointmentId: appointment.id,
-          clientName: appointment.clientName,
-          customerId: appointment.stripeCustomerId,
-          paymentMethodId: appointment.stripePaymentMethodId,
-          amount: (appointment.noShowFeeAmount || 40) * 100
-        })
+      const payload = await invokeFunction<{
+        appointment: {
+          id: string;
+          payment_guarantee_status: 'secured' | 'not_required' | 'charged' | 'charge_failed';
+          no_show_charge_id?: string;
+          status: Appointment['status'];
+        };
+        paymentIntentId: string;
+      }>('charge-no-show', {
+        appointmentId: appointment.id
       });
-      const payload = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(payload.error || 'No se pudo cobrar el no-show.');
-      }
 
       setAppointments(prev =>
         prev.map(ap =>
           ap.id === id
             ? {
                 ...ap,
-                paymentGuaranteeStatus: 'charged',
-                noShowChargeId: payload.paymentIntentId
+                status: payload.appointment.status,
+                paymentGuaranteeStatus: payload.appointment.payment_guarantee_status,
+                noShowChargeId: payload.appointment.no_show_charge_id || payload.paymentIntentId
               }
             : ap
         )
