@@ -37,6 +37,7 @@ interface DashboardViewProps {
   onUpdateAppointmentStatus: (id: string, status: Appointment['status'], updates?: Partial<Appointment>) => void;
   onOpenBooking: () => void;
   onAddAppointment: (appointment: Omit<Appointment, 'clientInitials' | 'avatarColor'>) => void;
+  onLogout: () => Promise<void>;
 }
 
 type AdminTab = 'dashboard' | 'calendar' | 'clients' | 'catalog' | 'settings' | 'pos' | 'analytics' | 'staff';
@@ -148,7 +149,7 @@ const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: ''
 const staffToStylists = (staff: AdminStaff[]): StaffStylist[] =>
   staff.filter(s => s.is_active !== false && s.stylist_id).map(s => ({ id: s.stylist_id as string, name: s.name, email: s.email }));
 
-export default function DashboardView({ appointments, stylists, currentUserEmail, onToggleStatus, onDeleteAppointment, onChargeNoShow, onUpdateAppointmentStatus, onOpenBooking, onAddAppointment }: DashboardViewProps) {
+export default function DashboardView({ appointments, stylists, currentUserEmail, onToggleStatus, onDeleteAppointment, onChargeNoShow, onUpdateAppointmentStatus, onOpenBooking, onAddAppointment, onLogout }: DashboardViewProps) {
   const now = today();
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
@@ -415,7 +416,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
 
   const chargeNoShow = async (ap: Appointment) => {
     if (!ap.stripeCustomerId || !ap.stripePaymentMethodId) {
-      notify('Esta reserva no tiene tarjeta guardada. Solo puedes cobrar no-show en reservas creadas con Stripe.', 'error');
+      notify('Esta reserva no tiene tarjeta guardada. Solo puedes cobrar no-show en reservas con garantia de pago.', 'error');
       return;
     }
     if (ap.paymentGuaranteeStatus === 'charged') {
@@ -527,6 +528,9 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#da4d73] px-4 py-3 text-xs font-bold uppercase text-white">
           <Plus className="w-4 h-4" /> Nueva reserva
         </button>
+        <button onClick={onLogout} className="mt-3 inline-flex items-center justify-center rounded-full border border-rose-100 bg-white px-4 py-3 text-xs font-bold uppercase text-stone-600 hover:bg-rose-50">
+          Logout
+        </button>
       </aside>
 
       <main className="p-5 pt-8 md:p-10">
@@ -541,6 +545,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
             <MobileTab active={activeTab === 'catalog'} label="Catalogo" onClick={() => setActiveTab('catalog')} />
             <MobileTab active={activeTab === 'settings'} label="Ajustes" onClick={() => setActiveTab('settings')} />
             <MobileTab active={activeTab === 'pos'} label="POS" onClick={() => setActiveTab('pos')} />
+            <MobileTab active={false} label="Logout" onClick={onLogout} />
           </div>
         </header>
 
@@ -582,7 +587,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
               <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h3 className="font-serif text-xl font-bold">Crear walk-in / cita admin</h3>
-                  <p className="text-xs text-stone-500">Sin tarjeta ni Stripe. Busca ficha por nombre, telefono o email.</p>
+                  <p className="text-xs text-stone-500">Sin tarjeta ni garantia de pago. Busca ficha por nombre, telefono o email.</p>
                 </div>
                 <button onClick={createAdminAppointment} className="rounded-full bg-stone-900 px-5 py-3 text-xs font-bold uppercase text-white">Guardar cita</button>
               </div>

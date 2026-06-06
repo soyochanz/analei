@@ -191,7 +191,7 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
                 </motion.div>
                 <h3 className="font-serif text-2xl text-stone-900 font-bold mb-2">Reserva solicitada con exito</h3>
                 <p className="font-sans text-xs text-stone-650 max-w-sm leading-relaxed">
-                  Tu tarjeta queda guardada de forma segura en Stripe como garantia. Hemos agendado tu cita de <span className="font-bold text-[#da4d73]">{selectedService}</span> para el <span className="font-bold text-stone-900">{selectedDate}</span> a las <span className="font-bold text-stone-900">{selectedTime}</span>.
+                  Tu tarjeta queda guardada de forma segura como garantia. Hemos agendado tu cita de <span className="font-bold text-[#da4d73]">{selectedService}</span> para el <span className="font-bold text-stone-900">{selectedDate}</span> a las <span className="font-bold text-stone-900">{selectedTime}</span>.
                 </p>
               </div>
             ) : (
@@ -317,13 +317,13 @@ function StripeBookingFields(props: PaymentBookingFormProps) {
       : result.setupIntent?.payment_method?.id;
 
     if (!paymentMethodId) {
-      setSubmitError('Stripe no devolvio un metodo de pago reutilizable.');
+      setSubmitError('No se pudo preparar un metodo de pago reutilizable.');
       return;
     }
 
     const setupIntentId = result.setupIntent?.id;
     if (!setupIntentId) {
-      setSubmitError('Stripe no devolvio el identificador de la garantia.');
+      setSubmitError('No se pudo preparar el identificador de la garantia.');
       return;
     }
 
@@ -439,18 +439,18 @@ function BookingFields({
           <div>
             <h4 className="font-sans text-xs text-stone-800 uppercase tracking-wider font-bold">Tarjeta de garantia</h4>
             <p className="text-[11px] text-stone-500 leading-relaxed mt-1">
-              No se cobra ahora. Si el cliente no asiste o incumple la politica de cancelacion, podras cobrar la penalizacion autorizada desde Stripe.
+              No se cobra ahora. Si el cliente no asiste o incumple la politica de cancelacion, podras cobrar la penalizacion autorizada.
             </p>
           </div>
         </div>
 
-        {isPreparingPayment && <StatusBox>Preparando pago seguro con Stripe...</StatusBox>}
+        {isPreparingPayment && <StatusBox>Preparando pago seguro...</StatusBox>}
         {paymentSetupError && <StatusBox danger>{paymentSetupError}</StatusBox>}
         {paymentElement}
 
         <label className="mt-3 flex items-start gap-2 text-[11px] text-stone-600 leading-relaxed">
           <input type="checkbox" required className="mt-0.5 accent-[#da4d73]" />
-          <span>Autorizo guardar mi tarjeta en Stripe para esta reserva y cobrar la penalizacion de no-show indicada si corresponde.</span>
+          <span>Autorizo guardar mi tarjeta para esta reserva y cobrar la penalizacion de no-show indicada si corresponde.</span>
         </label>
       </div>
 
