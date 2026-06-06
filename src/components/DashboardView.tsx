@@ -956,6 +956,7 @@ function PosView({
   chargeNoShow: (appointment: Appointment) => Promise<void>;
 }) {
   const [posTab, setPosTab] = useState<'services' | 'products' | 'functions'>('services');
+  const [manualKeyboardTarget, setManualKeyboardTarget] = useState<'name' | 'price' | null>(null);
   const serviceItems = services.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'Servicio' }));
   const productItems = products.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'Producto' }));
   const clientKey = posClient?.email || posClient?.phone || posClient?.name;
@@ -969,6 +970,11 @@ function PosView({
   const clientItems = saleItems.filter(item => clientSaleIds.has(item.sale_id));
   const selectedAppointment = posClient?.appointmentId ? appointments.find(ap => ap.id === posClient.appointmentId) : undefined;
   const removeCartItem = (targetIndex: number) => setCart(prev => prev.filter((_item, index) => index !== targetIndex));
+  const activeManualValue = manualKeyboardTarget === 'price' ? manualItemPrice : manualItemName;
+  const setActiveManualValue = (value: string) => {
+    if (manualKeyboardTarget === 'price') setManualItemPrice(value);
+    if (manualKeyboardTarget === 'name') setManualItemName(value);
+  };
   const addManualItem = () => {
     const price = Number(manualItemPrice);
     if (!manualItemName.trim() || !price) return;
@@ -1026,10 +1032,23 @@ function PosView({
           <div className="rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Entrada manual</p>
             <div className="grid gap-2 md:grid-cols-[1fr_120px_auto]">
-              <input value={manualItemName} onChange={e => setManualItemName(e.target.value)} placeholder="Nombre concepto" className="rounded-xl border border-rose-100 px-3 py-4 text-sm outline-[#da4d73]" />
-              <input value={manualItemPrice} onChange={e => setManualItemPrice(e.target.value)} type="number" placeholder="Precio" className="rounded-xl border border-rose-100 px-3 py-4 text-sm outline-[#da4d73]" />
+              <button onClick={() => setManualKeyboardTarget('name')} className={`rounded-xl border px-3 py-4 text-left text-sm font-bold ${manualKeyboardTarget === 'name' ? 'border-[#da4d73] bg-white text-stone-900 shadow-sm' : 'border-rose-100 bg-white text-stone-500'}`}>
+                {manualItemName || 'Nombre concepto'}
+              </button>
+              <button onClick={() => setManualKeyboardTarget('price')} className={`rounded-xl border px-3 py-4 text-left text-sm font-bold ${manualKeyboardTarget === 'price' ? 'border-[#da4d73] bg-white text-stone-900 shadow-sm' : 'border-rose-100 bg-white text-stone-500'}`}>
+                {manualItemPrice ? `${manualItemPrice} EUR` : 'Precio'}
+              </button>
               <button onClick={addManualItem} className="rounded-xl bg-stone-900 px-5 py-4 text-xs font-bold uppercase text-white active:scale-95">Anadir</button>
             </div>
+            {manualKeyboardTarget && (
+              <TouchKeyboard
+                mode={manualKeyboardTarget}
+                value={activeManualValue}
+                onChange={setActiveManualValue}
+                onDone={() => setManualKeyboardTarget(null)}
+                onSwitch={setManualKeyboardTarget}
+              />
+            )}
           </div>
           <div className="rounded-2xl border border-rose-100 bg-white p-4">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Consultar caja hoy</p>
@@ -1074,6 +1093,67 @@ function PosItemGrid({ items, setCart }: { items: { id?: string; name: string; p
       </button>
     ))}
   </div>;
+}
+
+function TouchKeyboard({
+  mode,
+  value,
+  onChange,
+  onDone,
+  onSwitch
+}: {
+  mode: 'name' | 'price';
+  value: string;
+  onChange: (value: string) => void;
+  onDone: () => void;
+  onSwitch: (mode: 'name' | 'price') => void;
+}) {
+  const add = (key: string) => {
+    if (mode === 'price') {
+      if (key === ',' || key === '.') {
+        if (value.includes('.') || value.includes(',')) return;
+        onChange(value ? `${value}.` : '0.');
+        return;
+      }
+      onChange(`${value}${key}`.replace(',', '.'));
+      return;
+    }
+    onChange(`${value}${key}`);
+  };
+  const remove = () => onChange(value.slice(0, -1));
+  const clear = () => onChange('');
+  const rows = mode === 'price'
+    ? [['7','8','9'], ['4','5','6'], ['1','2','3'], ['0','.']]
+    : [['Q','W','E','R','T','Y','U','I','O','P'], ['A','S','D','F','G','H','J','K','L'], ['Z','X','C','V','B','N','M']];
+
+  return <div className="mt-4 rounded-2xl border border-rose-100 bg-white p-3 shadow-sm">
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => onSwitch('name')} className={`rounded-xl px-4 py-3 text-xs font-black uppercase ${mode === 'name' ? 'bg-[#da4d73] text-white' : 'bg-rose-50 text-stone-600'}`}>Concepto</button>
+        <button onClick={() => onSwitch('price')} className={`rounded-xl px-4 py-3 text-xs font-black uppercase ${mode === 'price' ? 'bg-[#da4d73] text-white' : 'bg-rose-50 text-stone-600'}`}>Precio</button>
+      </div>
+      <button onClick={onDone} className="rounded-xl bg-stone-900 px-5 py-3 text-xs font-black uppercase text-white">Listo</button>
+    </div>
+    <div className="mb-3 min-h-12 rounded-xl bg-rose-50/50 px-4 py-3 text-lg font-bold text-stone-900">
+      {value || (mode === 'price' ? '0.00' : 'Nombre del concepto')}
+    </div>
+    <div className="grid gap-2">
+      {rows.map((row, rowIndex) => (
+        <div key={rowIndex} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))` }}>
+          {row.map(keyValue => <React.Fragment key={keyValue}><KeyboardKey label={keyValue} onClick={() => add(keyValue)} /></React.Fragment>)}
+        </div>
+      ))}
+    </div>
+    <div className="mt-2 grid grid-cols-3 gap-2">
+      {mode === 'name' && <KeyboardKey label="Espacio" wide onClick={() => add(' ')} />}
+      <KeyboardKey label="Borrar" onClick={remove} />
+      <KeyboardKey label="Limpiar" onClick={clear} />
+    </div>
+  </div>;
+}
+
+function KeyboardKey({ label, onClick, wide = false }: { label: string; onClick: () => void; wide?: boolean }) {
+  return <button onClick={onClick} className={`${wide ? 'col-span-1' : ''} min-h-14 rounded-xl border border-rose-100 bg-rose-50/60 text-sm font-black uppercase text-stone-800 active:scale-95`}>{label}</button>;
 }
 
 function CloseoutTicket({ closeout, onClose }: { closeout: { mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string }; onClose: () => void }) {
