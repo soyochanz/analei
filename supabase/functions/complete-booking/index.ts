@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       ? 0
       : policy.charge_type === 'percentage'
         ? Math.round(service.price_cents * Number(policy.percentage || 0) / 100)
-        : Number(policy.fixed_cents || 4000);
+        : Number(policy.fixed_cents ?? 4000);
 
     const insertPayload = {
       client_name: String(body.clientName || '').trim(),

@@ -13,7 +13,7 @@ const getNoShowFeeCents = async (supabase: ReturnType<typeof createAdminClient>,
   if (data.charge_type === 'percentage') {
     return Math.round(priceCents * Number(data.percentage || 0) / 100);
   }
-  return Number(data.fixed_cents || 4000);
+  return Number(data.fixed_cents ?? 4000);
 };
 
 Deno.serve(async (req) => {

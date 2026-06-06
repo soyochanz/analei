@@ -25,9 +25,11 @@ import {
 import { Appointment } from '../types';
 import { invokeFunction } from '../lib/supabase';
 
+type StaffStylist = { id: string; name: string; email?: string };
+
 interface DashboardViewProps {
   appointments: Appointment[];
-  stylists: { id: string; name: string; email?: string }[];
+  stylists: StaffStylist[];
   currentUserEmail?: string;
   onToggleStatus: (id: string) => void;
   onDeleteAppointment: (id: string) => void;
@@ -37,7 +39,7 @@ interface DashboardViewProps {
   onAddAppointment: (appointment: Omit<Appointment, 'clientInitials' | 'avatarColor'>) => void;
 }
 
-type AdminTab = 'dashboard' | 'clients' | 'catalog' | 'settings' | 'pos' | 'analytics' | 'staff';
+type AdminTab = 'dashboard' | 'calendar' | 'clients' | 'catalog' | 'settings' | 'pos' | 'analytics' | 'staff';
 type DateFilter = 'today' | 'yesterday' | 'tomorrow' | 'specific' | 'range' | 'all';
 
 type AdminProduct = {
@@ -85,6 +87,7 @@ type PosSale = { id: string; appointment_id?: string; client_name?: string; clie
 type PosSaleItem = { id: string; sale_id: string; item_type: 'service' | 'product'; name: string; quantity: number; total_cents: number; created_at: string };
 type CashClosure = { id: string; method: 'cash' | 'card' | 'all'; from_at: string; to_at: string; total_cents: number; sale_count: number; created_at: string };
 type ClientProfile = { key: string; name: string; email?: string; phone?: string; appointments: Appointment[] };
+type Notice = { id: number; title: string; message: string; type?: 'success' | 'error' | 'info' };
 
 const eur = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
 const today = () => new Date();
@@ -142,12 +145,15 @@ const findClientProfiles = (profiles: ClientProfile[], name?: string, phone?: st
 const emptyProduct: AdminProduct = { name: '', brand: '', description: '', price: 0, image_url: '', tag: '', stock: 0, is_active: true };
 const emptyService: AdminService = { name: '', description: '', category: 'hair', duration_minutes: 60, price: 0, icon_name: 'Scissors', is_active: true };
 const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: '', serviceId: '', stylistId: '', date: isoDate(today()), time: '10:00' };
+const staffToStylists = (staff: AdminStaff[]): StaffStylist[] =>
+  staff.filter(s => s.is_active !== false && s.stylist_id).map(s => ({ id: s.stylist_id as string, name: s.name, email: s.email }));
 
 export default function DashboardView({ appointments, stylists, currentUserEmail, onToggleStatus, onDeleteAppointment, onChargeNoShow, onUpdateAppointmentStatus, onOpenBooking, onAddAppointment }: DashboardViewProps) {
   const now = today();
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
   const [staffScope, setStaffScope] = useState<'all' | 'mine'>('all');
+  const [calendarDate, setCalendarDate] = useState(isoDate(now));
   const [specificDate, setSpecificDate] = useState(isoDate(now));
   const [rangeStart, setRangeStart] = useState(isoDate(addDays(now, -7)));
   const [rangeEnd, setRangeEnd] = useState(isoDate(addDays(now, 7)));
@@ -183,6 +189,14 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const [manualItemName, setManualItemName] = useState('');
   const [manualItemPrice, setManualItemPrice] = useState('');
   const [cashCloseout, setCashCloseout] = useState<{ mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string } | null>(null);
+  const [staffStylists, setStaffStylists] = useState<StaffStylist[]>(stylists);
+  const [notices, setNotices] = useState<Notice[]>([]);
+
+  const notify = (message: string, type: Notice['type'] = 'success', title = type === 'error' ? 'Revisa esto' : 'Listo') => {
+    const notice = { id: Date.now(), title, message, type };
+    setNotices(prev => [notice, ...prev].slice(0, 3));
+    window.setTimeout(() => setNotices(prev => prev.filter(item => item.id !== notice.id)), 4200);
+  };
 
   useEffect(() => {
     invokeFunction<{
@@ -217,7 +231,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           icon_name: s.icon_name || 'Scissors',
           is_active: s.is_active
         })));
-        setStaff((data.staff || []).filter(s => s.is_active !== false).map(s => ({
+        const normalizedStaff = (data.staff || []).filter(s => s.is_active !== false).map(s => ({
           id: s.id,
           auth_user_id: s.auth_user_id,
           stylist_id: s.stylist_id,
@@ -227,7 +241,9 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           pin: s.pin || '',
           is_admin: s.is_admin,
           is_active: s.is_active
-        })));
+        }));
+        setStaff(normalizedStaff);
+        setStaffStylists(staffToStylists(normalizedStaff));
         setSales(data.sales || []);
         setSaleItems(data.saleItems || []);
         setClosures(data.closures || []);
@@ -254,8 +270,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       .catch(error => console.warn('No se pudo cargar administracion:', error));
   }, []);
 
+  useEffect(() => {
+    if (stylists.length) setStaffStylists(stylists);
+  }, [stylists]);
+
   const currentStaff = staff.find(s => s.email === currentUserEmail);
-  const currentStylist = currentStaff?.stylist_id ? stylists.find(s => s.id === currentStaff.stylist_id) : undefined;
+  const professionals = staffStylists.length ? staffStylists : stylists;
+  const currentStylist = currentStaff?.stylist_id ? professionals.find(s => s.id === currentStaff.stylist_id) : undefined;
 
   const filteredAppointments = useMemo(() => {
     const scoped = staffScope === 'mine' && currentStylist ? appointments.filter(ap => ap.stylistId === currentStylist.id) : appointments;
@@ -327,17 +348,21 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
 
   const savePolicy = async () => {
     await invokeFunction('admin-panel', { action: 'save_policy', policy });
-    alert('Politica no-show guardada.');
+    notify('Politica no-show guardada.');
   };
 
   const saveSettings = async () => {
     await invokeFunction('admin-panel', { action: 'save_settings', settings });
-    alert('Ajustes de salon guardados.');
+    notify('Ajustes de salon guardados.');
   };
 
   const saveStaff = async () => {
     const { staff: saved } = await invokeFunction<{ staff: any }>('admin-panel', { action: 'upsert_staff', staff: editingStaff });
-    setStaff(prev => [{ ...editingStaff, id: saved.id, auth_user_id: saved.auth_user_id, password: '' }, ...prev.filter(s => s.id !== saved.id)]);
+    setStaff(prev => {
+      const next = [{ ...editingStaff, id: saved.id, auth_user_id: saved.auth_user_id, stylist_id: saved.stylist_id, password: '' }, ...prev.filter(s => s.id !== saved.id)];
+      setStaffStylists(staffToStylists(next));
+      return next;
+    });
     setEditingStaff({ name: '', email: '', password: '', role: 'stylist', pin: '', is_admin: false, is_active: true });
   };
 
@@ -351,10 +376,10 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   const createAdminAppointment = async () => {
-    if (!adminAppointment.clientName.trim()) return alert('Pon al menos el nombre del cliente.');
-    if (!adminAppointment.serviceId) return alert('Selecciona un servicio.');
+    if (!adminAppointment.clientName.trim()) return notify('Pon al menos el nombre del cliente.', 'error');
+    if (!adminAppointment.serviceId) return notify('Selecciona un servicio.', 'error');
     const selectedService = services.find(service => service.id === adminAppointment.serviceId);
-    const selectedStylist = stylists.find(stylist => stylist.id === adminAppointment.stylistId);
+    const selectedStylist = professionals.find(stylist => stylist.id === adminAppointment.stylistId);
     const { appointment } = await invokeFunction<{ appointment: any }>('admin-panel', {
       action: 'create_appointment',
       appointment: adminAppointment
@@ -375,28 +400,35 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       noShowFeeAmount: Math.round((appointment.no_show_fee_cents || 0) / 100)
     });
     setAdminAppointment({ ...emptyAdminAppointment, serviceId: selectedService?.id || '' });
-    alert('Cita walk-in creada sin tarjeta.');
+    notify('Cita walk-in creada sin tarjeta.');
   };
 
   const removeStaff = async (id?: string) => {
     if (!id) return;
     await invokeFunction('admin-panel', { action: 'delete_staff', id });
-    setStaff(prev => prev.filter(s => s.id !== id));
+    setStaff(prev => {
+      const next = prev.filter(s => s.id !== id);
+      setStaffStylists(staffToStylists(next));
+      return next;
+    });
   };
 
   const chargeNoShow = async (ap: Appointment) => {
     if (!ap.stripeCustomerId || !ap.stripePaymentMethodId) {
-      alert('Esta reserva no tiene tarjeta guardada. Solo puedes cobrar no-show en reservas creadas con Stripe.');
+      notify('Esta reserva no tiene tarjeta guardada. Solo puedes cobrar no-show en reservas creadas con Stripe.', 'error');
       return;
     }
     if (ap.paymentGuaranteeStatus === 'charged') {
-      alert('Esta reserva ya tiene el no-show cobrado.');
+      notify('Esta reserva ya tiene el no-show cobrado.', 'info');
       return;
     }
     if (!window.confirm(`Marcar a ${ap.clientName} como no-show y cobrar ${eur(ap.noShowFeeAmount || 0)}?`)) return;
     setProcessingNoShowId(ap.id);
     try {
       await onChargeNoShow(ap.id);
+      notify('No-show cobrado segun la politica actual.', 'success', 'Cargo realizado');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'No se pudo cobrar el no-show.', 'error');
     } finally {
       setProcessingNoShowId(null);
       setActiveMenuId(null);
@@ -417,7 +449,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       await chargeNoShow(ap);
       return;
     }
-    if (ap.status === 'NoShow') return alert('Esta cita ya esta marcada como no-show.');
+    if (ap.status === 'NoShow') return notify('Esta cita ya esta marcada como no-show.', 'info');
     if (!window.confirm(`Marcar a ${ap.clientName} como no-show sin cargo de tarjeta?`)) return;
     await updateAppointmentStatus(ap, 'NoShow');
   };
@@ -426,7 +458,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const todayAppointments = appointments.filter(ap => ap.date === isoDate(now) && (staffScope === 'all' || !currentStylist || ap.stylistId === currentStylist.id));
 
   const completePosSale = async (paymentMethod: 'cash' | 'card') => {
-    if (!posCart.length) return alert('Anade productos o servicios al ticket.');
+    if (!posCart.length) return notify('Anade productos o servicios al ticket.', 'error');
     const { sale } = await invokeFunction<{ sale: PosSale }>('admin-panel', {
       action: 'create_sale',
       sale: {
@@ -451,7 +483,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       ...prev
     ]);
     setPosCart([]);
-    alert(`Cobro registrado: ${eur(posTotal)} (${paymentMethod === 'cash' ? 'cash' : 'tarjeta'})`);
+    notify(`Cobro registrado: ${eur(posTotal)} (${paymentMethod === 'cash' ? 'cash' : 'tarjeta'}).`);
   };
 
   const viewRegister = (method: 'cash' | 'card' | 'all') => {
@@ -476,6 +508,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
 
   return (
     <div className="min-h-screen bg-[#fffbfb] text-stone-900 md:pl-64">
+      <NoticeStack notices={notices} onDismiss={id => setNotices(prev => prev.filter(item => item.id !== id))} />
       <aside className="fixed left-0 top-0 hidden md:flex h-screen w-64 flex-col border-r border-rose-100 bg-white p-5 shadow-sm">
         <div className="mb-6 px-2 py-4">
           <h1 className="font-serif text-3xl font-bold text-[#da4d73]">Maria</h1>
@@ -483,6 +516,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         </div>
         <nav className="flex flex-col gap-2 text-xs font-bold">
           <NavButton active={activeTab === 'dashboard'} icon={<CalendarDays className="w-4 h-4" />} label="Agenda" onClick={() => setActiveTab('dashboard')} />
+          <NavButton active={activeTab === 'calendar'} icon={<CalendarDays className="w-4 h-4" />} label="Calendario dia" onClick={() => setActiveTab('calendar')} />
           <NavButton active={activeTab === 'clients'} icon={<Users className="w-4 h-4" />} label="Fichas clientes" onClick={() => setActiveTab('clients')} />
           <NavButton active={activeTab === 'analytics'} icon={<LayoutGrid className="w-4 h-4" />} label="Analiticas" onClick={() => setActiveTab('analytics')} />
           <NavButton active={activeTab === 'catalog'} icon={<Package className="w-4 h-4" />} label="Productos y servicios" onClick={() => setActiveTab('catalog')} />
@@ -503,6 +537,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex">
             <MobileTab active={activeTab === 'dashboard'} label="Agenda" onClick={() => setActiveTab('dashboard')} />
+            <MobileTab active={activeTab === 'calendar'} label="Dia" onClick={() => setActiveTab('calendar')} />
             <MobileTab active={activeTab === 'catalog'} label="Catalogo" onClick={() => setActiveTab('catalog')} />
             <MobileTab active={activeTab === 'settings'} label="Ajustes" onClick={() => setActiveTab('settings')} />
             <MobileTab active={activeTab === 'pos'} label="POS" onClick={() => setActiveTab('pos')} />
@@ -561,7 +596,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
                 </Select>
                 <Select label="Peluquero" value={adminAppointment.stylistId} onChange={v => setAdminAppointment(ap => ({ ...ap, stylistId: v }))}>
                   <option value="">Cualquiera</option>
-                  {stylists.map(stylist => <option key={stylist.id} value={stylist.id}>{stylist.name}</option>)}
+                  {professionals.map(stylist => <option key={stylist.id} value={stylist.id}>{stylist.name}</option>)}
                 </Select>
                 <Field label="Fecha" type="date" value={adminAppointment.date} onChange={v => setAdminAppointment(ap => ({ ...ap, date: v }))} />
                 <Field label="Hora" type="time" value={adminAppointment.time} onChange={v => setAdminAppointment(ap => ({ ...ap, time: v }))} />
@@ -576,12 +611,6 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
                 </div>
               )}
             </section>
-
-            <DailyStylistCalendar
-              date={dateFilter === 'specific' ? specificDate : isoDate(now)}
-              stylists={stylists}
-              appointments={filteredAppointments}
-            />
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
               <div className="xl:col-span-8 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
@@ -645,6 +674,18 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           </>
         )}
 
+        {activeTab === 'calendar' && (
+          <DailySchedulePage
+            date={calendarDate}
+            setDate={setCalendarDate}
+            stylists={professionals}
+            appointments={appointments}
+            staffScope={staffScope}
+            setStaffScope={setStaffScope}
+            currentStylist={currentStylist}
+          />
+        )}
+
         {activeTab === 'clients' && <ClientsView appointments={appointments} />}
         {activeTab === 'analytics' && <AnalyticsView sales={sales} saleItems={saleItems} appointments={appointments} />}
         {activeTab === 'catalog' && (
@@ -669,42 +710,125 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   );
 }
 
-function DailyStylistCalendar({ date, stylists, appointments }: { date: string; stylists: { id: string; name: string }[]; appointments: Appointment[] }) {
-  const rows = [{ id: '', name: 'Sin asignar / cualquiera' }, ...stylists];
+function DailySchedulePage({
+  date,
+  setDate,
+  stylists,
+  appointments,
+  staffScope,
+  setStaffScope,
+  currentStylist
+}: {
+  date: string;
+  setDate: (date: string) => void;
+  stylists: StaffStylist[];
+  appointments: Appointment[];
+  staffScope: 'all' | 'mine';
+  setStaffScope: (scope: 'all' | 'mine') => void;
+  currentStylist?: StaffStylist;
+}) {
+  const visibleStylists = staffScope === 'mine' && currentStylist ? [currentStylist] : stylists;
+  const rows = [{ id: '', name: 'Cualquiera' }, ...visibleStylists];
+  const hours = Array.from({ length: 13 }, (_, index) => 8 + index);
+  const dayAppointments = appointments.filter(ap => ap.date === date);
   return (
-    <section className="mb-6 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-serif text-xl font-bold">Calendario diario · {date}</h3>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Fila por peluquero</span>
+    <section className="min-h-[78vh]">
+      <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#da4d73]">Calendario operativo</p>
+          <h3 className="font-serif text-4xl font-bold">Agenda del dia</h3>
+        </div>
+        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-rose-100 bg-white p-3 shadow-sm">
+          <Field label="Dia" type="date" value={date} onChange={setDate} />
+          <Select label="Profesional" value={staffScope} onChange={value => setStaffScope(value as 'all' | 'mine')}>
+            <option value="all">Todas</option>
+            <option value="mine">Solo las mias</option>
+          </Select>
+        </div>
       </div>
-      <div className="space-y-3">
-        {rows.map(row => {
-          const rowAppointments = appointments.filter(ap => ap.date === date && (row.id ? ap.stylistId === row.id : !ap.stylistId));
-          return (
-            <div key={row.id || 'any'} className="grid gap-3 rounded-xl border border-rose-50 bg-rose-50/20 p-3 md:grid-cols-[160px_1fr]">
-              <div className="font-bold text-sm text-stone-800">{row.name}</div>
-              <div className="flex min-h-14 flex-wrap gap-2">
-                {rowAppointments.length === 0 ? <span className="text-xs text-stone-400">Sin citas</span> : rowAppointments.map(ap => (
-                  <div key={ap.id} className="rounded-xl bg-white px-3 py-2 text-xs shadow-sm border border-rose-100">
-                    <b>{ap.time}</b> · {ap.clientName}
-                    <span className="block text-[10px] text-stone-400">{ap.service}</span>
-                  </div>
-                ))}
-              </div>
+      <div className="overflow-auto rounded-2xl border border-rose-100 bg-white shadow-sm">
+        <div className="grid min-w-[920px]" style={{ gridTemplateColumns: `88px repeat(${rows.length}, minmax(210px, 1fr))` }}>
+          <div className="sticky left-0 top-0 z-20 border-b border-r border-rose-100 bg-white p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Hora</div>
+          {rows.map(row => (
+            <div key={row.id || 'any-head'} className="sticky top-0 z-10 border-b border-r border-rose-100 bg-white p-4">
+              <p className="font-serif text-xl font-bold">{row.name}</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
+                {dayAppointments.filter(ap => row.id ? ap.stylistId === row.id : !ap.stylistId).length} citas
+              </p>
             </div>
-          );
-        })}
+          ))}
+          {hours.map(hour => (
+            <React.Fragment key={hour}>
+              <div className="sticky left-0 z-10 min-h-28 border-b border-r border-rose-100 bg-white p-3 text-sm font-black text-stone-500">
+                {String(hour).padStart(2, '0')}:00
+              </div>
+              {rows.map(row => {
+                const slotAppointments = dayAppointments.filter(ap => {
+                  const apHour = appointmentHour(ap.time);
+                  return apHour === hour && (row.id ? ap.stylistId === row.id : !ap.stylistId);
+                });
+                return (
+                  <div key={`${row.id || 'any'}-${hour}`} className="min-h-28 border-b border-r border-rose-100 bg-rose-50/10 p-2">
+                    <div className="space-y-2">
+                      {slotAppointments.map(ap => (
+                        <div key={ap.id} className="rounded-xl border border-rose-100 bg-white p-3 shadow-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <b className="text-sm">{ap.time}</b>
+                            <Status appointment={ap} />
+                          </div>
+                          <p className="mt-2 font-bold">{ap.clientName}</p>
+                          <p className="text-xs text-stone-500">{ap.service}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-[#da4d73]">{eur(ap.price)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
+function appointmentHour(time: string) {
+  const match = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return Number(time.slice(0, 2)) || 0;
+  let hour = Number(match[1]);
+  const suffix = match[3]?.toUpperCase();
+  if (suffix === 'PM' && hour !== 12) hour += 12;
+  if (suffix === 'AM' && hour === 12) hour = 0;
+  return hour;
+}
 function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
   return <button onClick={onClick} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left ${active ? 'bg-rose-50 text-[#da4d73]' : 'text-stone-500 hover:bg-rose-50/60'}`}>{icon}{label}</button>;
 }
 
 function MobileTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return <button onClick={onClick} className={`rounded-full px-3 py-2 text-[10px] font-bold uppercase ${active ? 'bg-[#da4d73] text-white' : 'bg-white text-stone-500 border border-rose-100'}`}>{label}</button>;
+}
+
+function NoticeStack({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id: number) => void }) {
+  return <div className="fixed right-5 top-5 z-[80] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-3">
+    {notices.map(notice => (
+      <div key={notice.id} className={`rounded-2xl border bg-white/95 p-4 shadow-2xl backdrop-blur-xl ${notice.type === 'error' ? 'border-rose-200' : notice.type === 'info' ? 'border-stone-200' : 'border-emerald-100'}`}>
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${notice.type === 'error' ? 'bg-rose-50 text-[#da4d73]' : notice.type === 'info' ? 'bg-stone-100 text-stone-700' : 'bg-emerald-50 text-emerald-700'}`}>
+            {notice.type === 'error' ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black text-stone-900">{notice.title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-stone-600">{notice.message}</p>
+          </div>
+          <button onClick={() => onDismiss(notice.id)} className="rounded-lg p-1 text-stone-400 hover:bg-rose-50 hover:text-stone-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    ))}
+  </div>;
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -826,10 +950,9 @@ function PosView({
   updateAppointmentStatus: (appointment: Appointment, status: Appointment['status']) => Promise<void>;
   chargeNoShow: (appointment: Appointment) => Promise<void>;
 }) {
-  const items = [
-    ...services.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'Servicio' })),
-    ...products.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'Producto' }))
-  ];
+  const [posTab, setPosTab] = useState<'services' | 'products' | 'functions'>('services');
+  const serviceItems = services.map(s => ({ id: s.id, name: s.name, price: s.price, type: 'Servicio' }));
+  const productItems = products.map(p => ({ id: p.id, name: p.name, price: p.price, type: 'Producto' }));
   const clientKey = posClient?.email || posClient?.phone || posClient?.name;
   const clientAppointments = clientKey ? appointments.filter(ap => clientMatches(ap, posClient?.name, posClient?.phone, posClient?.email)) : [];
   const clientSales = clientKey ? sales.filter(sale => {
@@ -886,30 +1009,65 @@ function PosView({
     </div>
     <div className="xl:col-span-5 rounded-2xl border border-rose-100 bg-white p-5">
       <h3 className="mb-4 font-serif text-3xl font-bold">POS tactil</h3>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">{items.map(item => <button key={`${item.type}-${item.id || item.name}`} onClick={() => setCart(prev => [...prev, { ...item, quantity: 1 }])} className="min-h-36 rounded-2xl border border-rose-100 bg-rose-50/30 p-4 text-left text-lg font-bold active:scale-95"><LayoutGrid className="mb-3 w-6 h-6 text-[#da4d73]" />{item.name}<span className="mt-3 block text-xl text-[#da4d73]">{eur(item.price)}</span><span className="text-[10px] uppercase tracking-widest text-stone-400">{item.type}</span></button>)}</div>
-      <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
-        <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Entrada manual</p>
-        <div className="grid gap-2 md:grid-cols-[1fr_120px_auto]">
-          <input value={manualItemName} onChange={e => setManualItemName(e.target.value)} placeholder="Nombre concepto" className="rounded-xl border border-rose-100 px-3 py-3 text-sm outline-[#da4d73]" />
-          <input value={manualItemPrice} onChange={e => setManualItemPrice(e.target.value)} type="number" placeholder="Precio" className="rounded-xl border border-rose-100 px-3 py-3 text-sm outline-[#da4d73]" />
-          <button onClick={addManualItem} className="rounded-xl bg-stone-900 px-5 py-3 text-xs font-bold uppercase text-white">Anadir</button>
-        </div>
+      <div className="mb-5 grid grid-cols-3 gap-3">
+        <PosTabButton active={posTab === 'services'} icon={<Scissors className="h-5 w-5" />} label="Servicios" onClick={() => setPosTab('services')} />
+        <PosTabButton active={posTab === 'products'} icon={<Package className="h-5 w-5" />} label="Productos" onClick={() => setPosTab('products')} />
+        <PosTabButton active={posTab === 'functions'} icon={<Settings className="h-5 w-5" />} label="Funciones" onClick={() => setPosTab('functions')} />
       </div>
+      {posTab === 'services' && <PosItemGrid items={serviceItems} setCart={setCart} />}
+      {posTab === 'products' && <PosItemGrid items={productItems} setCart={setCart} />}
+      {posTab === 'functions' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Entrada manual</p>
+            <div className="grid gap-2 md:grid-cols-[1fr_120px_auto]">
+              <input value={manualItemName} onChange={e => setManualItemName(e.target.value)} placeholder="Nombre concepto" className="rounded-xl border border-rose-100 px-3 py-4 text-sm outline-[#da4d73]" />
+              <input value={manualItemPrice} onChange={e => setManualItemPrice(e.target.value)} type="number" placeholder="Precio" className="rounded-xl border border-rose-100 px-3 py-4 text-sm outline-[#da4d73]" />
+              <button onClick={addManualItem} className="rounded-xl bg-stone-900 px-5 py-4 text-xs font-bold uppercase text-white active:scale-95">Anadir</button>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-rose-100 bg-white p-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Consultar caja hoy</p>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={() => viewRegister('cash')} className="min-h-20 rounded-2xl bg-rose-50 py-3 text-sm font-black uppercase active:scale-95">Cash</button>
+              <button onClick={() => viewRegister('card')} className="min-h-20 rounded-2xl bg-rose-50 py-3 text-sm font-black uppercase active:scale-95">Tarjeta</button>
+              <button onClick={() => viewRegister('all')} className="min-h-20 rounded-2xl bg-rose-50 py-3 text-sm font-black uppercase active:scale-95">Total</button>
+            </div>
+            <p className="mb-3 mt-5 text-xs font-bold uppercase tracking-widest text-stone-500">Cerrar caja</p>
+            <div className="grid grid-cols-3 gap-3">
+              <button onClick={() => closeRegister('cash')} className="min-h-20 rounded-2xl bg-stone-100 py-3 text-sm font-black uppercase active:scale-95">Cash</button>
+              <button onClick={() => closeRegister('card')} className="min-h-20 rounded-2xl bg-stone-100 py-3 text-sm font-black uppercase active:scale-95">Tarjeta</button>
+              <button onClick={() => closeRegister('all')} className="min-h-20 rounded-2xl bg-stone-900 py-3 text-sm font-black uppercase text-white active:scale-95">Total</button>
+            </div>
+            <p className="mt-3 text-[10px] text-stone-400">{sales.length} cobros · {closures.length} cierres</p>
+          </div>
+          {closeout && <CloseoutTicket closeout={closeout} onClose={() => setCloseout(null)} />}
+        </div>
+      )}
     </div>
     <div className="xl:col-span-4 rounded-2xl border border-rose-100 bg-white p-5">
       <h3 className="font-serif text-3xl font-bold">Ticket</h3>
       <p className="mb-4 text-xs font-bold text-[#da4d73]">{posClient ? posClient.name : 'Venta mostrador'}</p>
       <div className="space-y-2">{cart.map((item, index) => <button key={`${item.name}-${index}`} onClick={() => removeCartItem(index)} className="flex w-full items-center justify-between rounded-xl bg-rose-50/40 p-3 text-left text-sm active:scale-[0.99]"><span><b>{item.name}</b><span className="block text-[10px] font-bold uppercase tracking-widest text-stone-400">Tocar para eliminar</span></span><b>{eur(item.price * (item.quantity || 1))}</b></button>)}</div>
       <div className="mt-5 border-t border-rose-100 pt-5"><div className="flex justify-between font-serif text-4xl font-bold"><span>Total</span><span>{eur(total)}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><button onClick={() => completeSale('cash')} className="rounded-2xl bg-stone-900 py-5 text-sm font-bold uppercase text-white">Cash</button><button onClick={() => completeSale('card')} className="rounded-2xl bg-[#da4d73] py-5 text-sm font-bold uppercase text-white">Tarjeta</button></div><button onClick={() => setCart([])} className="mt-2 w-full rounded-full border border-rose-100 py-3 text-xs font-bold uppercase">Vaciar</button></div>
-      <div className="mt-6 rounded-xl border border-rose-100 p-3">
-        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Consultar caja hoy</p>
-        <div className="grid grid-cols-3 gap-2"><button onClick={() => viewRegister('cash')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Cash</button><button onClick={() => viewRegister('card')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Tarjeta</button><button onClick={() => viewRegister('all')} className="rounded-lg bg-rose-50 py-2 text-xs font-bold">Total</button></div>
-        <p className="mb-2 mt-4 text-xs font-bold uppercase tracking-widest text-stone-400">Cerrar caja</p>
-        <div className="grid grid-cols-3 gap-2"><button onClick={() => closeRegister('cash')} className="rounded-lg bg-stone-100 py-2 text-xs font-bold">Cash</button><button onClick={() => closeRegister('card')} className="rounded-lg bg-stone-100 py-2 text-xs font-bold">Tarjeta</button><button onClick={() => closeRegister('all')} className="rounded-lg bg-stone-900 py-2 text-xs font-bold text-white">Total</button></div>
-        <p className="mt-2 text-[10px] text-stone-400">{sales.length} cobros · {closures.length} cierres</p>
-      </div>
-      {closeout && <CloseoutTicket closeout={closeout} onClose={() => setCloseout(null)} />}
     </div>
+  </div>;
+}
+
+function PosTabButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
+  return <button onClick={onClick} className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black uppercase active:scale-95 ${active ? 'border-[#da4d73] bg-[#da4d73] text-white shadow-lg shadow-rose-100' : 'border-rose-100 bg-rose-50/40 text-stone-700'}`}>{icon}<span>{label}</span></button>;
+}
+
+function PosItemGrid({ items, setCart }: { items: { id?: string; name: string; price: number; type: string }[]; setCart: React.Dispatch<React.SetStateAction<{ id?: string; name: string; price: number; type: string; quantity?: number }[]>> }) {
+  return <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+    {items.map(item => (
+      <button key={`${item.type}-${item.id || item.name}`} onClick={() => setCart(prev => [...prev, { ...item, quantity: 1 }])} className="min-h-36 rounded-2xl border border-rose-100 bg-rose-50/30 p-4 text-left text-lg font-bold active:scale-95">
+        <LayoutGrid className="mb-3 h-6 w-6 text-[#da4d73]" />
+        {item.name}
+        <span className="mt-3 block text-xl text-[#da4d73]">{eur(item.price)}</span>
+        <span className="text-[10px] uppercase tracking-widest text-stone-400">{item.type}</span>
+      </button>
+    ))}
   </div>;
 }
 
@@ -962,3 +1120,5 @@ function StaffView({ staff, editingStaff, setEditingStaff, saveStaff, removeStaf
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm"><h3 className="mb-5 font-serif text-2xl font-bold">{title}</h3>{children}</section>;
 }
+
+

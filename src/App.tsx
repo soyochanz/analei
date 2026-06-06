@@ -68,10 +68,15 @@ const appointmentFromDb = (ap: DbAppointment, index: number): Appointment => ({
   stripeCustomerId: ap.stripe_customer_id,
   stripePaymentMethodId: ap.stripe_payment_method_id,
   paymentGuaranteeStatus: ap.payment_guarantee_status,
-  noShowFeeAmount: Math.round((ap.no_show_fee_cents || 4000) / 100),
+  noShowFeeAmount: Math.round((ap.no_show_fee_cents ?? 0) / 100),
   noShowChargeId: ap.no_show_charge_id,
   avatarColor: avatarColorCombos[index % avatarColorCombos.length]
 });
+
+const staffToStylists = (staff: any[] = []) =>
+  staff
+    .filter(s => s.is_active !== false && s.stylist_id)
+    .map(s => ({ id: s.stylist_id, name: s.name, email: s.email }));
 
 export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
@@ -151,8 +156,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    invokeFunction<{ stylists: any[] }>('admin-panel', { action: 'load' })
-      .then(data => setStylists((data.stylists || []).filter(s => s.is_active !== false).map(s => ({ id: s.id, name: s.name, email: s.email }))))
+    invokeFunction<{ staff: any[] }>('admin-panel', { action: 'load' })
+      .then(data => setStylists(staffToStylists(data.staff || [])))
       .catch(() => undefined);
   }, []);
 
@@ -213,8 +218,7 @@ export default function App() {
     if (!appointment) return;
 
     if (!appointment.stripeCustomerId || !appointment.stripePaymentMethodId) {
-      alert('Esta cita no tiene una tarjeta de garantia guardada en Stripe.');
-      return;
+      throw new Error('Esta cita no tiene una tarjeta de garantia guardada en Stripe.');
     }
 
     try {
@@ -223,6 +227,7 @@ export default function App() {
           id: string;
           payment_guarantee_status: 'secured' | 'not_required' | 'charged' | 'charge_failed';
           no_show_charge_id?: string;
+          no_show_fee_cents?: number;
           status: Appointment['status'];
         };
         paymentIntentId: string;
@@ -237,19 +242,21 @@ export default function App() {
                 ...ap,
                 status: payload.appointment.status,
                 paymentGuaranteeStatus: payload.appointment.payment_guarantee_status,
+                noShowFeeAmount: payload.appointment.no_show_fee_cents !== undefined
+                  ? Math.round(payload.appointment.no_show_fee_cents / 100)
+                  : ap.noShowFeeAmount,
                 noShowChargeId: payload.appointment.no_show_charge_id || payload.paymentIntentId
               }
             : ap
         )
       );
-      alert(`No-show marcado y cargo realizado correctamente: ${payload.paymentIntentId}`);
     } catch (error) {
       setAppointments(prev =>
         prev.map(ap =>
           ap.id === id ? { ...ap, paymentGuaranteeStatus: 'charge_failed' } : ap
         )
       );
-      alert(error instanceof Error ? error.message : 'No se pudo cobrar el no-show.');
+      throw error;
     }
   };
 

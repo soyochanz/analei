@@ -32,13 +32,14 @@ interface BookingModalProps {
 }
 
 const NO_SHOW_FEE_EUR = 40;
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export default function BookingModal({ isOpen, onClose, stylists, onBook }: BookingModalProps) {
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [selectedService, setSelectedService] = useState(SERVICES[0].name);
   const [selectedStylistId, setSelectedStylistId] = useState('');
-  const [selectedDate, setSelectedDate] = useState('2024-10-24');
+  const [selectedDate, setSelectedDate] = useState(todayIso());
   const [selectedTime, setSelectedTime] = useState('11:00 AM');
   const [isSuccess, setIsSuccess] = useState(false);
   const [clientSecret, setClientSecret] = useState('');
@@ -98,7 +99,7 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
         setClientSecret(payload.clientSecret);
         setSetupCustomerId(payload.customerId);
         setSetupServiceId(payload.serviceId);
-        setSetupNoShowFee(Math.round((payload.noShowFeeCents || NO_SHOW_FEE_EUR * 100) / 100));
+        setSetupNoShowFee(Math.round((payload.noShowFeeCents ?? NO_SHOW_FEE_EUR * 100) / 100));
       })
       .catch((error) => {
         if (!controller.signal.aborted) setPaymentSetupError(error.message);
@@ -150,7 +151,7 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
       stripeCustomerId: savedAppointment.stripe_customer_id || setupCustomerId,
       stripePaymentMethodId: savedAppointment.stripe_payment_method_id || stripePaymentMethodId,
       paymentGuaranteeStatus: savedAppointment.payment_guarantee_status,
-      noShowFeeAmount: Math.round((savedAppointment.no_show_fee_cents || setupNoShowFee * 100) / 100),
+      noShowFeeAmount: Math.round((savedAppointment.no_show_fee_cents ?? setupNoShowFee * 100) / 100),
       noShowChargeId: savedAppointment.no_show_charge_id
     });
 

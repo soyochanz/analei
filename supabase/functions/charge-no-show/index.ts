@@ -37,8 +37,24 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Esta cita ya tiene un cargo no-show registrado.' }, 409);
     }
 
+    const { data: policy } = await supabase
+      .from('no_show_policy')
+      .select('*')
+      .eq('id', true)
+      .maybeSingle();
+
+    const noShowFeeCents = !policy?.enabled
+      ? 0
+      : policy.charge_type === 'percentage'
+        ? Math.round(Number(appointment.price_cents || 0) * Number(policy.percentage || 0) / 100)
+        : Number(policy.fixed_cents ?? 4000);
+
+    if (noShowFeeCents <= 0) {
+      return jsonResponse({ error: 'La politica no-show actual no tiene cargo configurado.' }, 400);
+    }
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Number(appointment.no_show_fee_cents || 4000),
+      amount: noShowFeeCents,
       currency: 'eur',
       customer: appointment.stripe_customer_id,
       payment_method: appointment.stripe_payment_method_id,
@@ -57,6 +73,7 @@ Deno.serve(async (req) => {
       .update({
         status: 'NoShow',
         payment_guarantee_status: 'charged',
+        no_show_fee_cents: noShowFeeCents,
         no_show_charge_id: paymentIntent.id
       })
       .eq('id', appointment.id)
@@ -77,4 +94,3 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: stripeError.message || 'No se pudo cobrar el no-show.' }, 500);
   }
 });
-
