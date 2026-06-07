@@ -376,16 +376,17 @@ html[data-theme="mono"] #footer p[class*="font-mono"] {
 @layer components {
   .booking-input {
     width: 100%;
-    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    min-height: 3.35rem;
+    padding: 0.9rem 1.1rem 0.9rem 3rem;
     background: #ffffff;
     border: 1px solid #fecdd3;
-    border-radius: 0.75rem;
+    border-radius: 1rem;
     color: #292524;
     font-family: var(--font-sans);
-    font-size: 0.75rem;
-    line-height: 1rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    transition: border-color 150ms ease, box-shadow 150ms ease;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    box-shadow: 0 10px 24px rgba(190, 18, 60, 0.05);
+    transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
   }
 
   .booking-input::placeholder {
@@ -394,7 +395,17 @@ html[data-theme="mono"] #footer p[class*="font-mono"] {
 
   .booking-input:focus {
     border-color: #da4d73;
-    box-shadow: 0 0 0 1px #da4d73;
+    box-shadow: 0 0 0 2px rgba(218, 77, 115, 0.15), 0 14px 30px rgba(190, 18, 60, 0.08);
     outline: none;
+  }
+
+  .stripe-compact-element {
+    border-radius: 1rem;
+    background: #ffffff;
+  }
+
+  .stripe-compact-element .StripeElement,
+  .stripe-compact-element iframe {
+    max-width: 100%;
   }
 }
