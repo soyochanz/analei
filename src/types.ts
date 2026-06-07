@@ -46,6 +46,7 @@ export interface Product {
   features: string[];
   tag?: string;
   benefits: string[];
+  isFeatured?: boolean;
 }
 
 export interface Article {
@@ -57,4 +58,5 @@ export interface Article {
   content: string;
   image: string;
   publishedDate: string;
+  contentHtml?: string;
 }

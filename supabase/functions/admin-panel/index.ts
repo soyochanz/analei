@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
     const action = String(body.action || 'load');
 
     if (action === 'load') {
-      const [products, services, stylists, staff, sales, saleItems, closures, settings, policy] = await Promise.all([
+      const [products, services, stylists, staff, sales, saleItems, closures, settings, policy, posts, subscribers] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('services').select('*').order('name'),
         supabase.from('stylists').select('*').order('name'),
@@ -23,9 +23,11 @@ Deno.serve(async (req) => {
         supabase.from('pos_sale_items').select('*').order('created_at', { ascending: false }).limit(1000),
         supabase.from('cash_register_closures').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('salon_settings').select('*').eq('id', true).maybeSingle(),
-        supabase.from('no_show_policy').select('*').eq('id', true).maybeSingle()
+        supabase.from('no_show_policy').select('*').eq('id', true).maybeSingle(),
+        supabase.from('blog_posts').select('*').order('published_date', { ascending: false }).limit(100),
+        supabase.from('newsletter_subscribers').select('*').order('created_at', { ascending: false }).limit(1000)
       ]);
-      for (const result of [products, services, stylists, staff, sales, saleItems, closures, settings, policy]) {
+      for (const result of [products, services, stylists, staff, sales, saleItems, closures, settings, policy, posts, subscribers]) {
         if (result.error) throw result.error;
       }
       return jsonResponse({
@@ -37,7 +39,9 @@ Deno.serve(async (req) => {
         saleItems: saleItems.data || [],
         closures: closures.data || [],
         settings: settings.data,
-        policy: policy.data
+        policy: policy.data,
+        posts: posts.data || [],
+        subscribers: subscribers.data || []
       });
     }
 
@@ -52,6 +56,7 @@ Deno.serve(async (req) => {
         image_url: item.image_url || null,
         tag: item.tag || null,
         stock: Number(item.stock || 0),
+        is_featured: item.is_featured === true || item.isFeatured === true,
         is_active: item.is_active !== false
       };
       const { data, error } = await supabase.from('products').upsert(payload).select('*').single();
@@ -112,7 +117,9 @@ Deno.serve(async (req) => {
         phone: s.phone || null,
         email: s.email || null,
         address: s.address || null,
-        opening_hours: s.opening_hours || s.openingHours || null
+        opening_hours: s.opening_hours || s.openingHours || null,
+        opening_time: s.opening_time || s.openingTime || '09:00',
+        closing_time: s.closing_time || s.closingTime || '20:30'
       };
       const { data, error } = await supabase.from('salon_settings').upsert(payload).select('*').single();
       if (error) throw error;
@@ -144,6 +151,43 @@ Deno.serve(async (req) => {
         if (itemsError) throw itemsError;
       }
       return jsonResponse({ sale: saleData });
+    }
+
+    if (action === 'upsert_post') {
+      const post = body.post || {};
+      const payload = {
+        id: post.id || undefined,
+        title: String(post.title || '').trim(),
+        category: String(post.category || 'Consejos').trim(),
+        read_time: String(post.read_time || post.readTime || '3 min').trim(),
+        summary: String(post.summary || '').trim(),
+        content_html: String(post.content_html || post.contentHtml || ''),
+        cover_image_url: post.cover_image_url || post.coverImageUrl || null,
+        is_published: post.is_published !== false && post.isPublished !== false,
+        published_date: post.published_date || post.publishedDate || new Date().toISOString().slice(0, 10)
+      };
+      if (!payload.title) return jsonResponse({ error: 'Falta el titulo del post.' }, 400);
+      const { data, error } = await supabase.from('blog_posts').upsert(payload).select('*').single();
+      if (error) throw error;
+      return jsonResponse({ post: data });
+    }
+
+    if (action === 'delete_post') {
+      const { error } = await supabase.from('blog_posts').delete().eq('id', body.id);
+      if (error) throw error;
+      return jsonResponse({ ok: true });
+    }
+
+    if (action === 'subscribe_newsletter') {
+      const email = String(body.email || '').trim().toLowerCase();
+      if (!email || !email.includes('@')) return jsonResponse({ error: 'Email no valido.' }, 400);
+      const { data, error } = await supabase
+        .from('newsletter_subscribers')
+        .upsert({ email, source: body.source || 'home' }, { onConflict: 'email' })
+        .select('*')
+        .single();
+      if (error) throw error;
+      return jsonResponse({ subscriber: data });
     }
 
     if (action === 'create_appointment') {

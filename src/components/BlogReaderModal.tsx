@@ -81,9 +81,13 @@ export default function BlogReaderModal({ article, onClose }: BlogReaderModalPro
               </p>
 
               {/* Actual Markdown/HTML split text content */}
-              <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-stone-600 font-sans whitespace-pre-wrap">
-                {article.content}
-              </div>
+              {article.contentHtml ? (
+                <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-stone-600 font-sans" dangerouslySetInnerHTML={{ __html: article.contentHtml }} />
+              ) : (
+                <div className="space-y-4 text-xs sm:text-sm leading-relaxed text-stone-600 font-sans whitespace-pre-wrap">
+                  {article.content}
+                </div>
+              )}
 
               {/* Heart and share action bottom bar */}
               <div className="mt-8 pt-6 border-t border-rose-100 flex justify-between items-center bg-rose-50/40 border border-rose-100/50 p-4 rounded-xl">

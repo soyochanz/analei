@@ -20,24 +20,42 @@ import {
 } from 'lucide-react';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
-import { SERVICES } from '../data';
 import { invokeFunction } from '../lib/supabase';
-import { Appointment } from '../types';
+import { Appointment, Service } from '../types';
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   stylists: { id: string; name: string }[];
+  services: Service[];
+  settings?: { opening_time?: string; closing_time?: string };
+  appointments: Appointment[];
   onBook: (appointment: Omit<Appointment, 'clientInitials' | 'avatarColor'>) => void;
 }
 
 const NO_SHOW_FEE_EUR = 40;
 const todayIso = () => new Date().toISOString().slice(0, 10);
+const toMinutes = (time: string) => {
+  const [hour, minute] = time.split(':').map(Number);
+  return hour * 60 + minute;
+};
+const buildTimeSlots = (opening: string, closing: string) => {
+  const start = toMinutes(opening);
+  const end = toMinutes(closing);
+  const slots: string[] = [];
+  for (let current = start; current <= end - 30; current += 30) {
+    const hour = Math.floor(current / 60);
+    const minute = current % 60;
+    slots.push(`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+  }
+  return slots;
+};
 
-export default function BookingModal({ isOpen, onClose, stylists, onBook }: BookingModalProps) {
+export default function BookingModal({ isOpen, onClose, stylists, services, settings, appointments, onBook }: BookingModalProps) {
+  const serviceOptions = services.length ? services : [];
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
-  const [selectedService, setSelectedService] = useState(SERVICES[0].name);
+  const [selectedService, setSelectedService] = useState(serviceOptions[0]?.name || '');
   const [selectedStylistId, setSelectedStylistId] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayIso());
   const [selectedTime, setSelectedTime] = useState('11:00 AM');
@@ -49,8 +67,8 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
   const [isPreparingPayment, setIsPreparingPayment] = useState(false);
   const [paymentSetupError, setPaymentSetupError] = useState('');
 
-  const times = ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '12:30 PM', '01:00 PM', '02:00 PM', '03:00 PM', '04:30 PM', '05:30 PM'];
-  const selectedServiceDetails = SERVICES.find(s => s.name === selectedService) || SERVICES[0];
+  const times = buildTimeSlots(settings?.opening_time || '09:00', settings?.closing_time || '20:30');
+  const selectedServiceDetails = serviceOptions.find(s => s.name === selectedService) || serviceOptions[0];
   const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
   const stripePromise = useMemo(() => stripePublishableKey ? loadStripe(stripePublishableKey) : null, [stripePublishableKey]);
   const elementsOptions = useMemo<StripeElementsOptions | undefined>(() => {
@@ -80,6 +98,8 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
     setPaymentSetupError('');
     setClientSecret('');
     setSetupCustomerId('');
+    if (!selectedService && serviceOptions[0]) setSelectedService(serviceOptions[0].name);
+    if (!selectedService) return;
 
     invokeFunction<{
       clientSecret: string;
@@ -107,7 +127,7 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
       .finally(() => setIsPreparingPayment(false));
 
     return () => controller.abort();
-  }, [isOpen, selectedDate, selectedTime, selectedService, selectedStylistId, stripePublishableKey]);
+  }, [isOpen, selectedDate, selectedTime, selectedService, selectedStylistId, stripePublishableKey, serviceOptions[0]?.id]);
 
   const completeBooking = async (setupIntentId: string, stripePaymentMethodId: string) => {
     const response = await invokeFunction<{ appointment: {
@@ -183,6 +203,7 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.95, y: 20, opacity: 0 }}
             className="relative w-full max-w-lg bg-[#fffbfb] backdrop-blur-2xl rounded-2xl shadow-2xl overflow-y-auto border border-rose-100 z-10 text-stone-800 my-auto max-h-[90vh]"
+            style={{ maxWidth: '760px' }}
           >
             {isSuccess ? (
               <div className="p-12 text-center flex flex-col items-center justify-center bg-gradient-to-b from-rose-50 to-transparent">
@@ -218,12 +239,16 @@ export default function BookingModal({ isOpen, onClose, stylists, onBook }: Book
                   selectedDate={selectedDate}
                   selectedTime={selectedTime}
                   times={times}
+                  services={serviceOptions}
+                  openingTime={settings?.opening_time || '09:00'}
+                  closingTime={settings?.closing_time || '20:30'}
+                  appointments={appointments}
                   isPreparingPayment={isPreparingPayment}
                   paymentSetupError={paymentSetupError}
                   stripePromise={stripePromise}
                   elementsOptions={elementsOptions}
                   clientSecret={clientSecret}
-                  selectedPrice={selectedServiceDetails.price}
+                  selectedPrice={selectedServiceDetails?.price || 0}
                   noShowFee={setupNoShowFee}
                   onClientNameChange={setClientName}
                   onClientEmailChange={setClientEmail}
@@ -252,6 +277,10 @@ interface PaymentBookingFormProps {
   selectedDate: string;
   selectedTime: string;
   times: string[];
+  services: Service[];
+  openingTime: string;
+  closingTime: string;
+  appointments: Appointment[];
   isPreparingPayment: boolean;
   paymentSetupError: string;
   stripePromise: ReturnType<typeof loadStripe> | null;
@@ -366,6 +395,10 @@ function BookingFields({
   selectedDate,
   selectedTime,
   times,
+  services,
+  openingTime,
+  closingTime,
+  appointments,
   isPreparingPayment,
   paymentSetupError,
   paymentElement,
@@ -383,8 +416,40 @@ function BookingFields({
   onCancel,
   onSubmit
 }: BookingFieldsProps) {
+  const dateOptions = Array.from({ length: 10 }, (_, index) => {
+    const day = new Date();
+    day.setDate(day.getDate() + index);
+    return day.toISOString().slice(0, 10);
+  });
+  const availabilityForDate = (date: string) => {
+    const day = new Date(date).getDay();
+    if (day === 0) return 'closed';
+    const sameDay = appointments.filter(ap => ap.date === date && ap.status !== 'Cancelled');
+    if (sameDay.length >= times.length * Math.max(1, stylists.length)) return 'closed';
+    if (sameDay.length >= Math.max(3, times.length / 2) || day === 6) return 'limited';
+    return 'available';
+  };
+  const availabilityForTime = (time: string) => {
+    const minutes = toMinutes(time);
+    const opening = toMinutes(openingTime);
+    const closing = toMinutes(closingTime);
+    if (minutes < opening || minutes >= closing) return 'closed';
+    const sameSlot = appointments.filter(ap => ap.date === selectedDate && ap.time === time && ap.status !== 'Cancelled');
+    if (selectedStylistId && sameSlot.some(ap => ap.stylistId === selectedStylistId)) return 'closed';
+    if (!selectedStylistId && sameSlot.length >= Math.max(1, stylists.length)) return 'closed';
+    if (sameSlot.length >= Math.max(1, Math.floor(stylists.length / 2))) return 'limited';
+    if (minutes >= closing - 90 || minutes < opening + 60) return 'limited';
+    return 'available';
+  };
+  const availabilityClass = (state: string, active: boolean) =>
+    active ? 'border-stone-900 bg-stone-900 text-white' :
+    state === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' :
+    state === 'limited' ? 'border-amber-200 bg-amber-50 text-amber-800' :
+    'border-rose-200 bg-rose-50 text-rose-700 opacity-60';
+
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <form onSubmit={onSubmit} className="grid gap-5 lg:grid-cols-2">
+      <div className="space-y-5">
       <InputBlock label="Nombre Completo" icon={<User className="w-4 h-4" />}>
         <input id="input-client-name" type="text" required value={clientName} onChange={(e) => onClientNameChange(e.target.value)} placeholder="Ej. Carmen Soler" className="booking-input" />
       </InputBlock>
@@ -395,7 +460,7 @@ function BookingFields({
 
       <InputBlock label="Seleccionar Servicio" icon={<Scissors className="w-4 h-4" />}>
         <select id="select-service-booking" value={selectedService} onChange={(e) => onSelectedServiceChange(e.target.value)} className="booking-input appearance-none cursor-pointer">
-          {SERVICES.map((s) => (
+          {services.map((s) => (
             <option key={s.id} value={s.name} className="bg-white text-stone-800 font-sans text-xs p-2">
               {s.name} - EUR {s.price} ({s.duration})
             </option>
@@ -410,15 +475,35 @@ function BookingFields({
         </select>
       </InputBlock>
 
+      </div>
+
+      <div className="space-y-5">
+      <div className="rounded-2xl border border-rose-100 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <label className="font-sans text-xs uppercase tracking-wider text-stone-500 font-bold">Fechas</label>
+          <div className="flex gap-2 text-[10px] font-bold"><span className="text-emerald-700">Disponible</span><span className="text-amber-700">Poca</span><span className="text-rose-700">No</span></div>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {dateOptions.map(date => {
+            const state = availabilityForDate(date);
+            return <button type="button" key={date} disabled={state === 'closed'} onClick={() => onSelectedDateChange(date)} className={`min-h-14 rounded-xl border px-2 text-xs font-black ${availabilityClass(state, selectedDate === date)}`}>{new Date(date).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}</button>;
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <InputBlock label="Fecha" icon={<Calendar className="w-4 h-4" />}>
           <input id="input-booking-date" type="date" required value={selectedDate} onChange={(e) => onSelectedDateChange(e.target.value)} className="booking-input [color-scheme:light]" />
         </InputBlock>
-        <InputBlock label="Hora" icon={<Clock className="w-4 h-4" />}>
-          <select id="select-booking-time" value={selectedTime} onChange={(e) => onSelectedTimeChange(e.target.value)} className="booking-input appearance-none cursor-pointer">
-            {times.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </InputBlock>
+        <div className="rounded-2xl border border-rose-100 bg-white p-4">
+          <label className="mb-3 block font-sans text-xs uppercase tracking-wider text-stone-500 font-bold">Horas</label>
+          <div className="grid max-h-44 grid-cols-3 gap-2 overflow-auto">
+            {times.map(t => {
+              const state = availabilityForTime(t);
+              return <button type="button" key={t} disabled={state === 'closed'} onClick={() => onSelectedTimeChange(t)} className={`min-h-11 rounded-xl border text-xs font-black ${availabilityClass(state, selectedTime === t)}`}>{t}</button>;
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="bg-rose-50/40 rounded-xl p-4 border border-rose-100 text-stone-800">
@@ -466,6 +551,7 @@ function BookingFields({
             {isSubmitting ? 'Validando...' : 'Confirmar Reserva'}
           </span>
         </button>
+      </div>
       </div>
     </form>
   );

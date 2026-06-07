@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_APPOINTMENTS } from './data';
-import { Appointment, Article } from './types';
+import { Appointment, Article, Product, Service } from './types';
 import ClientPortalView from './components/ClientPortalView';
 import DashboardView from './components/DashboardView';
 import BookingModal from './components/BookingModal';
@@ -88,6 +88,10 @@ export default function App() {
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [adminSession, setAdminSession] = useState<any>(null);
   const [stylists, setStylists] = useState<{ id: string; name: string; email?: string }[]>([]);
+  const [homeServices, setHomeServices] = useState<Service[]>([]);
+  const [homeProducts, setHomeProducts] = useState<Product[]>([]);
+  const [homeArticles, setHomeArticles] = useState<Article[]>([]);
+  const [salonSettings, setSalonSettings] = useState<any>(null);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -163,8 +167,43 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    invokeFunction<{ staff: any[] }>('admin-panel', { action: 'load' })
-      .then(data => setStylists(staffToStylists(data.staff || [])))
+    invokeFunction<{ staff: any[]; services: any[]; products: any[]; posts: any[]; settings: any }>('admin-panel', { action: 'load' })
+      .then(data => {
+        setStylists(staffToStylists(data.staff || []));
+        setSalonSettings(data.settings || null);
+        setHomeServices((data.services || []).filter(s => s.is_active !== false).map(s => ({
+          id: s.id,
+          name: s.name,
+          description: s.description || '',
+          category: s.category || 'hair',
+          duration: `${s.duration_minutes || 60} min`,
+          price: Math.round((s.price_cents || 0) / 100),
+          iconName: s.icon_name || 'Scissors'
+        })));
+        setHomeProducts((data.products || []).filter(p => p.is_active !== false && p.is_featured === true).map(p => ({
+          id: p.id,
+          name: p.name,
+          brand: p.brand || '',
+          description: p.description || '',
+          price: Math.round((p.price_cents || 0) / 100),
+          image: p.image_url || '',
+          features: [],
+          benefits: [],
+          tag: p.tag || 'Recomendado',
+          isFeatured: p.is_featured
+        })));
+        setHomeArticles((data.posts || []).filter(p => p.is_published !== false).map(p => ({
+          id: p.id,
+          title: p.title,
+          category: p.category,
+          readTime: p.read_time,
+          summary: p.summary,
+          content: p.content_html?.replace(/<[^>]+>/g, '') || p.summary,
+          contentHtml: p.content_html,
+          image: p.cover_image_url || '',
+          publishedDate: p.published_date
+        })));
+      })
       .catch(() => undefined);
   }, []);
 
@@ -314,8 +353,9 @@ export default function App() {
             <ClientPortalView
               onOpenBooking={() => setIsBookingOpen(true)}
               onReadArticle={handleReadArticle}
-              visualTheme={visualTheme}
-              onToggleVisualTheme={() => setVisualTheme(prev => prev === 'color' ? 'mono' : 'color')}
+              services={homeServices}
+              products={homeProducts}
+              articles={homeArticles}
             />
           )}
         </motion.div>
@@ -326,6 +366,9 @@ export default function App() {
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
         stylists={stylists}
+        services={homeServices}
+        settings={salonSettings}
+        appointments={appointments}
         onBook={handleAddNewAppointment}
       />
 

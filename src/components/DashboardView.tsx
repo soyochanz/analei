@@ -40,7 +40,7 @@ interface DashboardViewProps {
   onLogout: () => Promise<void>;
 }
 
-type AdminTab = 'dashboard' | 'calendar' | 'clients' | 'catalog' | 'settings' | 'pos' | 'analytics' | 'staff';
+type AdminTab = 'dashboard' | 'calendar' | 'clients' | 'catalog' | 'content' | 'settings' | 'pos' | 'analytics' | 'staff';
 type DateFilter = 'today' | 'yesterday' | 'tomorrow' | 'specific' | 'range' | 'all';
 
 type AdminProduct = {
@@ -52,6 +52,7 @@ type AdminProduct = {
   image_url?: string;
   tag?: string;
   stock: number;
+  is_featured?: boolean;
   is_active?: boolean;
 };
 
@@ -81,7 +82,11 @@ type SalonSettings = {
   email: string;
   address: string;
   opening_hours: string;
+  opening_time?: string;
+  closing_time?: string;
 };
+type AdminPost = { id?: string; title: string; category: string; read_time: string; summary: string; content_html: string; cover_image_url?: string; is_published?: boolean; published_date?: string };
+type Subscriber = { id: string; email: string; created_at: string; source?: string };
 
 type AdminStaff = { id?: string; auth_user_id?: string; stylist_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
 type PosSale = { id: string; appointment_id?: string; client_name?: string; client_email?: string; payment_method: 'cash' | 'card'; total_cents: number; created_at: string };
@@ -145,6 +150,7 @@ const findClientProfiles = (profiles: ClientProfile[], name?: string, phone?: st
 
 const emptyProduct: AdminProduct = { name: '', brand: '', description: '', price: 0, image_url: '', tag: '', stock: 0, is_active: true };
 const emptyService: AdminService = { name: '', description: '', category: 'hair', duration_minutes: 60, price: 0, icon_name: 'Scissors', is_active: true };
+const emptyPost: AdminPost = { title: '', category: 'Consejos', read_time: '3 min', summary: '', content_html: '', cover_image_url: '', is_published: true, published_date: isoDate(today()) };
 const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: '', serviceId: '', stylistId: '', date: isoDate(today()), time: '10:00' };
 const staffToStylists = (staff: AdminStaff[]): StaffStylist[] =>
   staff.filter(s => s.is_active !== false && s.stylist_id).map(s => ({ id: s.stylist_id as string, name: s.name, email: s.email }));
@@ -183,6 +189,9 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     address: '',
     opening_hours: ''
   });
+  const [posts, setPosts] = useState<AdminPost[]>([]);
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [editingPost, setEditingPost] = useState<AdminPost>(emptyPost);
   const [editingStaff, setEditingStaff] = useState<AdminStaff>({ name: '', email: '', password: '', role: 'stylist', pin: '', is_admin: false, is_active: true });
   const [adminAppointment, setAdminAppointment] = useState(emptyAdminAppointment);
   const [posCart, setPosCart] = useState<{ id?: string; name: string; price: number; type: string; quantity?: number }[]>([]);
@@ -207,6 +216,8 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       sales?: PosSale[];
       saleItems?: PosSaleItem[];
       closures?: CashClosure[];
+      posts?: AdminPost[];
+      subscribers?: Subscriber[];
       settings?: any;
       policy?: any;
     }>('admin-panel', { action: 'load' })
@@ -220,6 +231,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           image_url: p.image_url || '',
           tag: p.tag || '',
           stock: p.stock || 0,
+          is_featured: p.is_featured,
           is_active: p.is_active
         })));
         setServices((data.services || []).filter(s => s.is_active !== false).map(s => ({
@@ -248,6 +260,8 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         setSales(data.sales || []);
         setSaleItems(data.saleItems || []);
         setClosures(data.closures || []);
+        setPosts(data.posts || []);
+        setSubscribers(data.subscribers || []);
         if (data.policy) {
           setPolicy({
             enabled: data.policy.enabled,
@@ -264,7 +278,9 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
             phone: data.settings.phone || '',
             email: data.settings.email || '',
             address: data.settings.address || '',
-            opening_hours: data.settings.opening_hours || ''
+            opening_hours: data.settings.opening_hours || '',
+            opening_time: data.settings.opening_time || '09:00',
+            closing_time: data.settings.closing_time || '20:30'
           });
         }
       })
@@ -326,6 +342,27 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     const normalized = { ...editingProduct, id: product.id };
     setProducts(prev => [normalized, ...prev.filter(p => p.id !== product.id)]);
     setEditingProduct(emptyProduct);
+  };
+  const savePost = async () => {
+    const { post } = await invokeFunction<{ post: AdminPost }>('admin-panel', { action: 'upsert_post', post: editingPost });
+    setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]);
+    setEditingPost(emptyPost);
+    notify('Post guardado.');
+  };
+  const removePost = async (id?: string) => {
+    if (!id) return;
+    await invokeFunction('admin-panel', { action: 'delete_post', id });
+    setPosts(prev => prev.filter(p => p.id !== id));
+  };
+  const exportSubscribers = () => {
+    const csv = ['Email,Fecha,Origen', ...subscribers.map(s => `${s.email},${new Date(s.created_at).toLocaleString('es-ES')},${s.source || ''}`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'newsletter-suscriptores.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const saveService = async () => {
@@ -521,6 +558,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           <NavButton active={activeTab === 'clients'} icon={<Users className="w-4 h-4" />} label="Fichas clientes" onClick={() => setActiveTab('clients')} />
           <NavButton active={activeTab === 'analytics'} icon={<LayoutGrid className="w-4 h-4" />} label="Analiticas" onClick={() => setActiveTab('analytics')} />
           <NavButton active={activeTab === 'catalog'} icon={<Package className="w-4 h-4" />} label="Productos y servicios" onClick={() => setActiveTab('catalog')} />
+          <NavButton active={activeTab === 'content'} icon={<LayoutGrid className="w-4 h-4" />} label="Contenido" onClick={() => setActiveTab('content')} />
           <NavButton active={activeTab === 'staff'} icon={<Users className="w-4 h-4" />} label="Peluqueros" onClick={() => setActiveTab('staff')} />
           <NavButton active={activeTab === 'settings'} icon={<Settings className="w-4 h-4" />} label="Ajustes y no-show" onClick={() => setActiveTab('settings')} />
           <NavButton active={activeTab === 'pos'} icon={<ShoppingCart className="w-4 h-4" />} label="POS tactil" onClick={() => setActiveTab('pos')} />
@@ -707,6 +745,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
             removeService={removeService}
           />
         )}
+        {activeTab === 'content' && <ContentView posts={posts} editingPost={editingPost} setEditingPost={setEditingPost} savePost={savePost} removePost={removePost} subscribers={subscribers} exportSubscribers={exportSubscribers} />}
         {activeTab === 'settings' && <SettingsView policy={policy} settings={settings} setPolicy={setPolicy} setSettings={setSettings} savePolicy={savePolicy} saveSettings={saveSettings} />}
         {activeTab === 'staff' && <StaffView staff={staff} editingStaff={editingStaff} setEditingStaff={setEditingStaff} saveStaff={saveStaff} removeStaff={removeStaff} />}
         {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} appointmentsToday={todayAppointments} appointments={appointments} posClient={posClient} setPosClient={setPosClient} completeSale={completePosSale} closeRegister={closeRegister} viewRegister={viewRegister} sales={sales} saleItems={saleItems} manualItemName={manualItemName} manualItemPrice={manualItemPrice} setManualItemName={setManualItemName} setManualItemPrice={setManualItemPrice} closeout={cashCloseout} setCloseout={setCashCloseout} closures={closures} updateAppointmentStatus={updateAppointmentStatus} chargeNoShow={posNoShow} />}
@@ -879,6 +918,7 @@ function CatalogView(props: {
         <Field label="Precio EUR" type="number" value={props.editingProduct.price} onChange={v => props.setEditingProduct(p => ({ ...p, price: Number(v) }))} />
         <Field label="Stock" type="number" value={props.editingProduct.stock} onChange={v => props.setEditingProduct(p => ({ ...p, stock: Number(v) }))} />
         <Field label="Imagen URL" value={props.editingProduct.image_url || ''} onChange={v => props.setEditingProduct(p => ({ ...p, image_url: v }))} />
+        <label className="flex items-end gap-2 text-xs font-bold"><input type="checkbox" checked={props.editingProduct.is_featured === true} onChange={e => props.setEditingProduct(p => ({ ...p, is_featured: e.target.checked }))} /> Recomendado en home</label>
       </Editor>
       <List items={props.products} onEdit={props.setEditingProduct} onDelete={props.removeProduct} />
     </Panel>
@@ -895,6 +935,40 @@ function CatalogView(props: {
   </div>;
 }
 
+function ContentView({ posts, editingPost, setEditingPost, savePost, removePost, subscribers, exportSubscribers }: { posts: AdminPost[]; editingPost: AdminPost; setEditingPost: React.Dispatch<React.SetStateAction<AdminPost>>; savePost: () => Promise<void>; removePost: (id?: string) => Promise<void>; subscribers: Subscriber[]; exportSubscribers: () => void }) {
+  const applyFormat = (tag: 'strong' | 'em' | 'p') => {
+    const text = window.getSelection()?.toString();
+    if (!text) return;
+    setEditingPost(p => ({ ...p, content_html: `${p.content_html}<${tag}>${text}</${tag}>` }));
+  };
+  return <div className="grid gap-6 xl:grid-cols-2">
+    <Panel title="Posts consejos belleza">
+      <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50/20 p-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Titulo" value={editingPost.title} onChange={v => setEditingPost(p => ({ ...p, title: v }))} />
+          <Field label="Categoria" value={editingPost.category} onChange={v => setEditingPost(p => ({ ...p, category: v }))} />
+          <Field label="Tiempo lectura" value={editingPost.read_time} onChange={v => setEditingPost(p => ({ ...p, read_time: v }))} />
+          <Field label="Portada imagen URL" value={editingPost.cover_image_url || ''} onChange={v => setEditingPost(p => ({ ...p, cover_image_url: v }))} />
+        </div>
+        <textarea value={editingPost.summary} onChange={e => setEditingPost(p => ({ ...p, summary: e.target.value }))} placeholder="Resumen" className="mt-3 h-20 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+        <div className="mt-3 flex gap-2">
+          <button type="button" onClick={() => applyFormat('strong')} className="rounded-lg bg-white px-3 py-2 text-xs font-bold">B</button>
+          <button type="button" onClick={() => applyFormat('em')} className="rounded-lg bg-white px-3 py-2 text-xs font-bold">I</button>
+          <button type="button" onClick={() => setEditingPost(p => ({ ...p, content_html: `${p.content_html}<p></p>` }))} className="rounded-lg bg-white px-3 py-2 text-xs font-bold">Parrafo</button>
+        </div>
+        <div contentEditable suppressContentEditableWarning onInput={e => setEditingPost(p => ({ ...p, content_html: e.currentTarget.innerHTML }))} className="mt-3 min-h-40 rounded-xl border border-rose-100 bg-white p-3 text-sm outline-[#da4d73]" dangerouslySetInnerHTML={{ __html: editingPost.content_html }} />
+        <label className="mt-3 flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editingPost.is_published !== false} onChange={e => setEditingPost(p => ({ ...p, is_published: e.target.checked }))} /> Publicado</label>
+        <button onClick={savePost} className="mt-4 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar post</button>
+      </div>
+      <div className="space-y-2">{posts.map(post => <div key={post.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{post.title}</p><p className="text-xs text-stone-500">{post.category} · {post.read_time}</p><div className="mt-2 flex gap-2"><button onClick={() => setEditingPost(post)} className="rounded-lg border border-rose-100 px-3 py-1 text-xs font-bold">Editar</button><button onClick={() => removePost(post.id)} className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">Eliminar</button></div></div>)}</div>
+    </Panel>
+    <Panel title="Newsletter">
+      <button onClick={exportSubscribers} className="mb-4 rounded-full bg-stone-900 px-5 py-2 text-xs font-bold uppercase text-white">Exportar Excel</button>
+      <div className="max-h-[520px] space-y-2 overflow-auto">{subscribers.map(s => <div key={s.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{s.email}</p><p className="text-xs text-stone-500">{new Date(s.created_at).toLocaleString('es-ES')}</p></div>)}</div>
+    </Panel>
+  </div>;
+}
+
 function Editor({ title, children, onSave, onNew }: { title: string; children: React.ReactNode; onSave: () => Promise<void>; onNew: () => void }) {
   return <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50/20 p-4"><div className="mb-3 flex items-center justify-between"><h4 className="font-bold">{title}</h4><button onClick={onNew} className="rounded-lg border border-rose-100 bg-white p-2"><X className="w-4 h-4" /></button></div><div className="grid gap-3 md:grid-cols-2">{children}</div><button onClick={onSave} className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#da4d73] px-4 py-2 text-xs font-bold uppercase text-white"><Save className="w-4 h-4" /> Guardar</button></div>;
 }
@@ -904,15 +978,51 @@ function List<T extends { id?: string; name: string; price: number; brand?: stri
 }
 
 function SettingsView({ policy, settings, setPolicy, setSettings, savePolicy, saveSettings }: { policy: NoShowPolicy; settings: SalonSettings; setPolicy: React.Dispatch<React.SetStateAction<NoShowPolicy>>; setSettings: React.Dispatch<React.SetStateAction<SalonSettings>>; savePolicy: () => Promise<void>; saveSettings: () => Promise<void> }) {
+  const isFixedPolicy = policy.charge_type === 'fixed';
+  const policyPreview = isFixedPolicy
+    ? `Stripe cobrara ${eur(Number(policy.fixed || 0))} al marcar y cobrar un no-show.`
+    : `Stripe cobrara el ${Number(policy.percentage || 0)}% del precio de la cita al marcar y cobrar un no-show.`;
+
   return <div className="grid gap-6 xl:grid-cols-2">
-    <Panel title="Politica no-show">
-      <div className="grid gap-3 md:grid-cols-2">
-        <Select label="Tipo de cargo" value={policy.charge_type} onChange={v => setPolicy(p => ({ ...p, charge_type: v as NoShowPolicy['charge_type'] }))}><option value="fixed">Fijo</option><option value="percentage">Porcentaje</option></Select>
-        <Field label="Horas cancelacion" type="number" value={policy.cancellation_hours} onChange={v => setPolicy(p => ({ ...p, cancellation_hours: Number(v) }))} />
-        <Field label="Monto fijo EUR" type="number" value={policy.fixed} onChange={v => setPolicy(p => ({ ...p, fixed: Number(v) }))} />
-        <Field label="Porcentaje %" type="number" value={policy.percentage} onChange={v => setPolicy(p => ({ ...p, percentage: Number(v) }))} />
+    <Panel title="Politicas cancelacion y no-show">
+      <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50/40 p-4">
+        <label className="flex items-start gap-3 text-sm font-bold text-stone-800">
+          <input
+            type="checkbox"
+            checked={policy.enabled}
+            onChange={e => setPolicy(p => ({ ...p, enabled: e.target.checked }))}
+            className="mt-1"
+          />
+          Activar cobro automatico de penalizacion al cobrar no-show con Stripe
+        </label>
+        <p className="mt-2 text-xs leading-relaxed text-stone-500">
+          Al pulsar cobrar no-show en una cita, Stripe usara siempre la politica guardada en este panel.
+        </p>
       </div>
-      <textarea value={policy.policy_text} onChange={e => setPolicy(p => ({ ...p, policy_text: e.target.value }))} className="mt-3 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Select
+          label="Tipo de penalizacion"
+          value={policy.charge_type}
+          onChange={v => setPolicy(p => ({ ...p, charge_type: v as NoShowPolicy['charge_type'] }))}
+        >
+          <option value="fixed">Monto fijo</option>
+          <option value="percentage">Porcentaje de la cita</option>
+        </Select>
+        <Field label="Horas minimas para cancelar" type="number" value={policy.cancellation_hours} onChange={v => setPolicy(p => ({ ...p, cancellation_hours: Number(v) }))} />
+        {isFixedPolicy ? (
+          <Field label="Monto fijo EUR" type="number" value={policy.fixed} onChange={v => setPolicy(p => ({ ...p, fixed: Number(v) }))} />
+        ) : (
+          <Field label="Porcentaje %" type="number" value={policy.percentage} onChange={v => setPolicy(p => ({ ...p, percentage: Number(v) }))} />
+        )}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+        {policy.enabled ? policyPreview : 'La politica esta desactivada: no se cobrara ninguna penalizacion no-show.'}
+      </div>
+
+      <label className="mt-4 block text-xs font-bold uppercase tracking-wider text-stone-500">Texto de politica visible para clientes</label>
+      <textarea value={policy.policy_text} onChange={e => setPolicy(p => ({ ...p, policy_text: e.target.value }))} className="mt-2 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
       <button onClick={savePolicy} className="mt-3 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar politica</button>
     </Panel>
     <Panel title="Ajustes de salon">
@@ -921,6 +1031,8 @@ function SettingsView({ policy, settings, setPolicy, setSettings, savePolicy, sa
         <Field label="Telefono" value={settings.phone} onChange={v => setSettings(s => ({ ...s, phone: v }))} />
         <Field label="Email" value={settings.email} onChange={v => setSettings(s => ({ ...s, email: v }))} />
         <Field label="Direccion" value={settings.address} onChange={v => setSettings(s => ({ ...s, address: v }))} />
+        <Field label="Apertura" type="time" value={settings.opening_time || '09:00'} onChange={v => setSettings(s => ({ ...s, opening_time: v }))} />
+        <Field label="Cierre" type="time" value={settings.closing_time || '20:30'} onChange={v => setSettings(s => ({ ...s, closing_time: v }))} />
       </div>
       <textarea value={settings.opening_hours} onChange={e => setSettings(s => ({ ...s, opening_hours: e.target.value }))} placeholder="Horario" className="mt-3 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
       <button onClick={saveSettings} className="mt-3 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ajustes</button>
