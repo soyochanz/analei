@@ -460,12 +460,25 @@ function BookingFields({
     day.setDate(day.getDate() + index);
     return day.toISOString().slice(0, 10);
   });
+  const activeStylistsCount = Math.max(1, stylists.length);
+  const occupiedCountForSlot = (date: string, time: string) => {
+    const sameSlot = appointments.filter(ap => ap.date === date && ap.time === time && ap.status !== 'Cancelled');
+    if (!selectedStylistId) return sameSlot.length;
+    return sameSlot.some(ap => ap.stylistId === selectedStylistId) ? activeStylistsCount : 0;
+  };
   const availabilityForDate = (date: string) => {
     const day = new Date(date).getDay();
     if (day === 0) return 'closed';
-    const sameDay = appointments.filter(ap => ap.date === date && ap.status !== 'Cancelled');
-    if (sameDay.length >= times.length * Math.max(1, stylists.length)) return 'closed';
-    if (sameDay.length >= Math.max(3, times.length / 2) || day === 6) return 'limited';
+    const slotStates = times.map(time => {
+      const occupied = occupiedCountForSlot(date, time);
+      if (occupied >= activeStylistsCount) return 'closed';
+      if (occupied >= Math.ceil(activeStylistsCount / 2)) return 'limited';
+      return 'available';
+    });
+    const closedSlots = slotStates.filter(state => state === 'closed').length;
+    const pressuredSlots = slotStates.filter(state => state !== 'available').length;
+    if (closedSlots >= times.length) return 'closed';
+    if (pressuredSlots >= Math.ceil(times.length / 2)) return 'limited';
     return 'available';
   };
   const availabilityForTime = (time: string) => {
@@ -473,11 +486,9 @@ function BookingFields({
     const opening = toMinutes(openingTime);
     const closing = toMinutes(closingTime);
     if (minutes < opening || minutes >= closing) return 'closed';
-    const sameSlot = appointments.filter(ap => ap.date === selectedDate && ap.time === time && ap.status !== 'Cancelled');
-    if (selectedStylistId && sameSlot.some(ap => ap.stylistId === selectedStylistId)) return 'closed';
-    if (!selectedStylistId && sameSlot.length >= Math.max(1, stylists.length)) return 'closed';
-    if (sameSlot.length >= Math.max(1, Math.floor(stylists.length / 2))) return 'limited';
-    if (minutes >= closing - 90 || minutes < opening + 60) return 'limited';
+    const occupied = occupiedCountForSlot(selectedDate, time);
+    if (occupied >= activeStylistsCount) return 'closed';
+    if (occupied >= Math.ceil(activeStylistsCount / 2)) return 'limited';
     return 'available';
   };
   const availabilityClass = (state: string, active: boolean) =>

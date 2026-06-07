@@ -90,7 +90,7 @@ type Subscriber = { id: string; email: string; created_at: string; source?: stri
 
 type AdminStaff = { id?: string; auth_user_id?: string; stylist_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
 type PosSale = { id: string; appointment_id?: string; client_name?: string; client_email?: string; payment_method: 'cash' | 'card'; total_cents: number; created_at: string };
-type PosSaleItem = { id: string; sale_id: string; item_type: 'service' | 'product'; name: string; quantity: number; total_cents: number; created_at: string };
+type PosSaleItem = { id: string; sale_id: string; item_type: 'service' | 'product'; name: string; quantity: number; unit_price_cents?: number; total_cents: number; created_at: string };
 type CashClosure = { id: string; method: 'cash' | 'card' | 'all'; from_at: string; to_at: string; total_cents: number; sale_count: number; created_at: string };
 type ClientProfile = { key: string; name: string; email?: string; phone?: string; appointments: Appointment[] };
 type Notice = { id: number; title: string; message: string; type?: 'success' | 'error' | 'info' };
@@ -1291,9 +1291,9 @@ function CloseoutTicket({ closeout, onClose }: { closeout: { mode: 'consulta' | 
 }
 
 function AnalyticsView({ sales, saleItems, appointments }: { sales: PosSale[]; saleItems: PosSaleItem[]; appointments: Appointment[] }) {
-  const byDay = sales.reduce<Record<string, number>>((acc, sale) => {
+  const salesByDay = sales.reduce<Record<string, PosSale[]>>((acc, sale) => {
     const day = sale.created_at.slice(0, 10);
-    acc[day] = (acc[day] || 0) + sale.total_cents / 100;
+    acc[day] = [...(acc[day] || []), sale];
     return acc;
   }, {});
   const byItem = saleItems.reduce<Record<string, number>>((acc, item) => {
@@ -1303,11 +1303,72 @@ function AnalyticsView({ sales, saleItems, appointments }: { sales: PosSale[]; s
   const total = sales.reduce((sum, sale) => sum + sale.total_cents / 100, 0);
   const card = sales.filter(s => s.payment_method === 'card').reduce((sum, sale) => sum + sale.total_cents / 100, 0);
   const cash = sales.filter(s => s.payment_method === 'cash').reduce((sum, sale) => sum + sale.total_cents / 100, 0);
-  return <div className="grid gap-6 xl:grid-cols-3"><Metric icon={<CreditCard className="w-5 h-5" />} label="Total POS" value={eur(total)} /><Metric icon={<ShoppingCart className="w-5 h-5" />} label="Tarjeta" value={eur(card)} /><Metric icon={<ShoppingCart className="w-5 h-5" />} label="Cash" value={eur(cash)} /><Panel title="Ingresos por dia"><Rows data={byDay} /></Panel><Panel title="Ingresos por servicio/producto"><Rows data={byItem} /></Panel><Panel title="Agenda"><p className="text-sm">Citas totales: <b>{appointments.length}</b></p><p className="text-sm">No-show: <b>{appointments.filter(a => a.status === 'NoShow').length}</b></p><p className="text-sm">Confirmadas: <b>{appointments.filter(a => a.status === 'Confirmed').length}</b></p></Panel></div>;
+  return <div className="grid gap-6 xl:grid-cols-3"><Metric icon={<CreditCard className="w-5 h-5" />} label="Total POS" value={eur(total)} /><Metric icon={<ShoppingCart className="w-5 h-5" />} label="Tarjeta" value={eur(card)} /><Metric icon={<ShoppingCart className="w-5 h-5" />} label="Cash" value={eur(cash)} /><div className="xl:col-span-2"><DailyRevenuePanel salesByDay={salesByDay} saleItems={saleItems} /></div><Panel title="Ingresos por servicio/producto"><Rows data={byItem} /></Panel><Panel title="Agenda"><p className="text-sm">Citas totales: <b>{appointments.length}</b></p><p className="text-sm">No-show: <b>{appointments.filter(a => a.status === 'NoShow').length}</b></p><p className="text-sm">Confirmadas: <b>{appointments.filter(a => a.status === 'Confirmed').length}</b></p></Panel></div>;
 }
 
 function Rows({ data }: { data: Record<string, number> }) {
   return <div className="space-y-2">{Object.entries(data).sort((a,b) => b[1] - a[1]).map(([label, value]) => <div key={label} className="flex justify-between rounded-xl bg-rose-50/40 p-3 text-sm"><span>{label}</span><b>{eur(value)}</b></div>)}</div>;
+}
+
+function DailyRevenuePanel({ salesByDay, saleItems }: { salesByDay: Record<string, PosSale[]>; saleItems: PosSaleItem[] }) {
+  const itemMap = saleItems.reduce<Record<string, PosSaleItem[]>>((acc, item) => {
+    acc[item.sale_id] = [...(acc[item.sale_id] || []), item];
+    return acc;
+  }, {});
+  const days = Object.entries(salesByDay).sort(([a], [b]) => b.localeCompare(a));
+
+  return <Panel title="Ingresos por dia">
+    <div className="space-y-4">
+      {days.length === 0 && <p className="rounded-xl bg-rose-50/40 p-4 text-sm text-stone-500">Todavia no hay transacciones registradas.</p>}
+      {days.map(([day, daySales]) => {
+        const dayTotal = daySales.reduce((sum, sale) => sum + sale.total_cents / 100, 0);
+        const dayCard = daySales.filter(sale => sale.payment_method === 'card').reduce((sum, sale) => sum + sale.total_cents / 100, 0);
+        const dayCash = daySales.filter(sale => sale.payment_method === 'cash').reduce((sum, sale) => sum + sale.total_cents / 100, 0);
+        return (
+          <details key={day} className="overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-sm" open={day === days[0]?.[0]}>
+            <summary className="cursor-pointer list-none bg-rose-50/50 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{new Date(`${day}T12:00:00`).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p className="font-serif text-2xl font-bold text-stone-900">{eur(dayTotal)}</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="rounded-xl bg-white px-3 py-2"><p className="font-black">{daySales.length}</p><span className="text-stone-400">cobros</span></div>
+                  <div className="rounded-xl bg-white px-3 py-2"><p className="font-black">{eur(dayCard)}</p><span className="text-stone-400">tarjeta</span></div>
+                  <div className="rounded-xl bg-white px-3 py-2"><p className="font-black">{eur(dayCash)}</p><span className="text-stone-400">cash</span></div>
+                </div>
+              </div>
+            </summary>
+            <div className="divide-y divide-rose-50">
+              {daySales.map(sale => {
+                const items = itemMap[sale.id] || [];
+                return (
+                  <div key={sale.id} className="p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="font-bold text-stone-900">{sale.client_name || 'Venta mostrador'}</p>
+                        <p className="text-xs text-stone-500">{new Date(sale.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {sale.payment_method === 'card' ? 'Tarjeta' : 'Cash'}{sale.client_email ? ` · ${sale.client_email}` : ''}</p>
+                      </div>
+                      <b className="text-[#da4d73]">{eur(sale.total_cents / 100)}</b>
+                    </div>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      {items.length === 0 && <p className="rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-500">Sin lineas de ticket guardadas.</p>}
+                      {items.map(item => (
+                        <div key={item.id} className="rounded-xl bg-stone-50 px-3 py-2 text-xs">
+                          <div className="flex justify-between gap-3"><span className="font-bold">{item.name}</span><span>{eur(item.total_cents / 100)}</span></div>
+                          <p className="mt-1 text-stone-400">{item.item_type === 'product' ? 'Producto' : 'Servicio'} · Cant. {item.quantity} · {eur(item.unit_price_cents / 100)} ud.</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  </Panel>;
 }
 
 function StaffView({ staff, editingStaff, setEditingStaff, saveStaff, removeStaff }: { staff: AdminStaff[]; editingStaff: AdminStaff; setEditingStaff: React.Dispatch<React.SetStateAction<AdminStaff>>; saveStaff: () => Promise<void>; removeStaff: (id?: string) => Promise<void> }) {
