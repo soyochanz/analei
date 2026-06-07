@@ -87,12 +87,15 @@ type SalonSettings = {
 };
 type AdminPost = { id?: string; title: string; category: string; read_time: string; summary: string; content_html: string; cover_image_url?: string; is_published?: boolean; published_date?: string };
 type Subscriber = { id: string; email: string; created_at: string; source?: string };
+type SavedClientProfile = { id?: string; name: string; email?: string; phone?: string; photo_url?: string; notes?: string; birthdate?: string; allergies?: string; preferences?: string; created_at?: string; updated_at?: string };
+type NewsletterCampaign = { id: string; subject: string; template: string; body_html: string; status: 'draft' | 'sent' | 'failed'; recipient_count: number; sent_at?: string; error_message?: string; created_at: string };
+type NewsletterDraft = { subject: string; template: string; body_html: string };
 
 type AdminStaff = { id?: string; auth_user_id?: string; stylist_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
 type PosSale = { id: string; appointment_id?: string; client_name?: string; client_email?: string; payment_method: 'cash' | 'card'; total_cents: number; created_at: string };
 type PosSaleItem = { id: string; sale_id: string; item_type: 'service' | 'product'; name: string; quantity: number; unit_price_cents?: number; total_cents: number; created_at: string };
 type CashClosure = { id: string; method: 'cash' | 'card' | 'all'; from_at: string; to_at: string; total_cents: number; sale_count: number; created_at: string };
-type ClientProfile = { key: string; name: string; email?: string; phone?: string; appointments: Appointment[] };
+type ClientProfile = SavedClientProfile & { key: string; appointments: Appointment[] };
 type Notice = { id: number; title: string; message: string; type?: 'success' | 'error' | 'info' };
 
 const eur = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -119,14 +122,20 @@ const clientMatches = (ap: Pick<Appointment, 'clientName' | 'clientEmail' | 'cli
   );
 };
 
-const buildClientProfiles = (appointments: Appointment[]) => {
+const buildClientProfiles = (appointments: Appointment[], savedClients: SavedClientProfile[] = []) => {
   const profiles = new Map<string, ClientProfile>();
+  savedClients.forEach(client => {
+    const key = normalizeText(client.email) || normalizePhone(client.phone) || normalizeText(client.name) || client.id || '';
+    if (!key) return;
+    profiles.set(key, { ...client, key, appointments: [] });
+  });
   appointments.forEach(ap => {
     const key = clientIdentityKey(ap);
     if (!key) return;
     const existing = profiles.get(key);
     if (existing) {
       existing.appointments.push(ap);
+      existing.name ||= ap.clientName;
       existing.email ||= ap.clientEmail;
       existing.phone ||= ap.clientPhone;
       return;
@@ -151,6 +160,24 @@ const findClientProfiles = (profiles: ClientProfile[], name?: string, phone?: st
 const emptyProduct: AdminProduct = { name: '', brand: '', description: '', price: 0, image_url: '', tag: '', stock: 0, is_active: true };
 const emptyService: AdminService = { name: '', description: '', category: 'hair', duration_minutes: 60, price: 0, icon_name: 'Scissors', is_active: true };
 const emptyPost: AdminPost = { title: '', category: 'Consejos', read_time: '3 min', summary: '', content_html: '', cover_image_url: '', is_published: true, published_date: isoDate(today()) };
+const emptyClient: SavedClientProfile = { name: '', email: '', phone: '', photo_url: '', notes: '', birthdate: '', allergies: '', preferences: '' };
+const newsletterTemplates: Record<string, NewsletterDraft> = {
+  promo: {
+    template: 'promo',
+    subject: 'Oferta especial de belleza esta semana',
+    body_html: '<h2>Oferta especial</h2><p>Esta semana tenemos una promocion pensada para mimarte. Reserva tu cita y disfruta de una experiencia completa en el salon.</p><p><strong>Plazas limitadas.</strong></p>'
+  },
+  tips: {
+    template: 'tips',
+    subject: 'Consejo beauty de la semana',
+    body_html: '<h2>Consejo beauty</h2><p>Te compartimos una rutina sencilla para mantener tu piel y cabello cuidados entre visitas al salon.</p><p>Estamos encantadas de ayudarte a elegir el tratamiento ideal.</p>'
+  },
+  custom: {
+    template: 'custom',
+    subject: '',
+    body_html: '<h2>Hola</h2><p>Escribe aqui tu email para el newsletter.</p>'
+  }
+};
 const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: '', serviceId: '', stylistId: '', date: isoDate(today()), time: '10:00' };
 const staffToStylists = (staff: AdminStaff[]): StaffStylist[] =>
   staff.filter(s => s.is_active !== false && s.stylist_id).map(s => ({ id: s.stylist_id as string, name: s.name, email: s.email }));
@@ -191,7 +218,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   });
   const [posts, setPosts] = useState<AdminPost[]>([]);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [clients, setClients] = useState<SavedClientProfile[]>([]);
+  const [campaigns, setCampaigns] = useState<NewsletterCampaign[]>([]);
   const [editingPost, setEditingPost] = useState<AdminPost>(emptyPost);
+  const [editingClient, setEditingClient] = useState<SavedClientProfile>(emptyClient);
+  const [clientSearch, setClientSearch] = useState('');
+  const [newsletterDraft, setNewsletterDraft] = useState<NewsletterDraft>(newsletterTemplates.custom);
+  const [isSendingNewsletter, setIsSendingNewsletter] = useState(false);
   const [editingStaff, setEditingStaff] = useState<AdminStaff>({ name: '', email: '', password: '', role: 'stylist', pin: '', is_admin: false, is_active: true });
   const [adminAppointment, setAdminAppointment] = useState(emptyAdminAppointment);
   const [posCart, setPosCart] = useState<{ id?: string; name: string; price: number; type: string; quantity?: number }[]>([]);
@@ -218,6 +251,8 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       closures?: CashClosure[];
       posts?: AdminPost[];
       subscribers?: Subscriber[];
+      clients?: SavedClientProfile[];
+      campaigns?: NewsletterCampaign[];
       settings?: any;
       policy?: any;
     }>('admin-panel', { action: 'load' })
@@ -262,6 +297,8 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         setClosures(data.closures || []);
         setPosts(data.posts || []);
         setSubscribers(data.subscribers || []);
+        setClients(data.clients || []);
+        setCampaigns(data.campaigns || []);
         if (data.policy) {
           setPolicy({
             enabled: data.policy.enabled,
@@ -322,7 +359,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     return { todayCount: todayAppointments.length, weeklyRevenue, uniqueClients, noShowRevenue };
   }, [appointments]);
 
-  const clientProfiles = useMemo(() => buildClientProfiles(appointments), [appointments]);
+  const clientProfiles = useMemo(() => buildClientProfiles(appointments, clients), [appointments, clients]);
   const adminAppointmentMatches = useMemo(
     () => findClientProfiles(clientProfiles, adminAppointment.clientName, adminAppointment.clientPhone, adminAppointment.clientEmail),
     [clientProfiles, adminAppointment.clientName, adminAppointment.clientPhone, adminAppointment.clientEmail]
@@ -363,6 +400,38 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     a.download = 'newsletter-suscriptores.csv';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveClient = async () => {
+    const payload = await invokeFunction<{ client: SavedClientProfile }>('admin-panel', { action: 'upsert_client', client: editingClient });
+    setClients(prev => [payload.client, ...prev.filter(client => client.id !== payload.client.id)]);
+    setEditingClient(emptyClient);
+    notify('Ficha de cliente guardada.');
+  };
+
+  const removeClient = async (id?: string) => {
+    if (!id) return;
+    await invokeFunction('admin-panel', { action: 'delete_client', id });
+    setClients(prev => prev.filter(client => client.id !== id));
+    notify('Ficha de cliente eliminada.');
+  };
+
+  const sendNewsletter = async () => {
+    setIsSendingNewsletter(true);
+    try {
+      const payload = await invokeFunction<{ campaign: NewsletterCampaign }>('admin-panel', {
+        action: 'send_newsletter',
+        subject: newsletterDraft.subject,
+        template: newsletterDraft.template,
+        body_html: newsletterDraft.body_html
+      });
+      setCampaigns(prev => [payload.campaign, ...prev]);
+      notify(`Newsletter enviado a ${payload.campaign.recipient_count} emails.`);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'No se pudo enviar el newsletter.', 'error');
+    } finally {
+      setIsSendingNewsletter(false);
+    }
   };
 
   const saveService = async () => {
@@ -729,7 +798,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           />
         )}
 
-        {activeTab === 'clients' && <ClientsView appointments={appointments} />}
+        {activeTab === 'clients' && <ClientsView clients={clientProfiles} editingClient={editingClient} setEditingClient={setEditingClient} saveClient={saveClient} removeClient={removeClient} clientSearch={clientSearch} setClientSearch={setClientSearch} />}
         {activeTab === 'analytics' && <AnalyticsView sales={sales} saleItems={saleItems} appointments={appointments} />}
         {activeTab === 'catalog' && (
           <CatalogView
@@ -745,7 +814,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
             removeService={removeService}
           />
         )}
-        {activeTab === 'content' && <ContentView posts={posts} editingPost={editingPost} setEditingPost={setEditingPost} savePost={savePost} removePost={removePost} subscribers={subscribers} exportSubscribers={exportSubscribers} />}
+        {activeTab === 'content' && <ContentView posts={posts} editingPost={editingPost} setEditingPost={setEditingPost} savePost={savePost} removePost={removePost} subscribers={subscribers} exportSubscribers={exportSubscribers} newsletterDraft={newsletterDraft} setNewsletterDraft={setNewsletterDraft} sendNewsletter={sendNewsletter} isSendingNewsletter={isSendingNewsletter} campaigns={campaigns} />}
         {activeTab === 'settings' && <SettingsView policy={policy} settings={settings} setPolicy={setPolicy} setSettings={setSettings} savePolicy={savePolicy} saveSettings={saveSettings} />}
         {activeTab === 'staff' && <StaffView staff={staff} editingStaff={editingStaff} setEditingStaff={setEditingStaff} saveStaff={saveStaff} removeStaff={removeStaff} />}
         {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} appointmentsToday={todayAppointments} appointments={appointments} posClient={posClient} setPosClient={setPosClient} completeSale={completePosSale} closeRegister={closeRegister} viewRegister={viewRegister} sales={sales} saleItems={saleItems} manualItemName={manualItemName} manualItemPrice={manualItemPrice} setManualItemName={setManualItemName} setManualItemPrice={setManualItemPrice} closeout={cashCloseout} setCloseout={setCashCloseout} closures={closures} updateAppointmentStatus={updateAppointmentStatus} chargeNoShow={posNoShow} />}
@@ -900,9 +969,72 @@ function Status({ appointment }: { appointment: Appointment }) {
   return <div className="flex flex-col gap-1"><span className="w-fit rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-[#da4d73]">{label}</span>{appointment.paymentGuaranteeStatus === 'charged' && <span className="w-fit rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-bold text-stone-700">No-show cobrado</span>}{appointment.paymentGuaranteeStatus === 'secured' && <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">Tarjeta guardada</span>}</div>;
 }
 
-function ClientsView({ appointments }: { appointments: Appointment[] }) {
-  const clients = buildClientProfiles(appointments);
-  return <Panel title="Fichas de clientes"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{clients.map(client => <div key={client.key} className="rounded-xl border border-rose-100 p-4"><p className="font-bold">{client.name}</p><p className="text-xs text-stone-500">{client.email || 'Sin email'}{client.phone ? ` · ${client.phone}` : ''}</p><p className="mt-2 text-[10px] uppercase tracking-widest text-stone-400">{client.appointments.length} citas encontradas por nombre, telefono o email</p><div className="mt-3 max-h-28 space-y-1 overflow-auto">{client.appointments.slice(0, 5).map(ap => <div key={ap.id} className="rounded-lg bg-rose-50 px-2 py-1 text-[11px]">{ap.date} · {ap.service}</div>)}</div></div>)}</div></Panel>;
+function ClientsView({
+  clients,
+  editingClient,
+  setEditingClient,
+  saveClient,
+  removeClient,
+  clientSearch,
+  setClientSearch
+}: {
+  clients: ClientProfile[];
+  editingClient: SavedClientProfile;
+  setEditingClient: React.Dispatch<React.SetStateAction<SavedClientProfile>>;
+  saveClient: () => Promise<void>;
+  removeClient: (id?: string) => Promise<void>;
+  clientSearch: string;
+  setClientSearch: (value: string) => void;
+}) {
+  const query = normalizeText(clientSearch);
+  const visibleClients = clients.filter(client =>
+    !query ||
+    normalizeText(client.name).includes(query) ||
+    normalizeText(client.email).includes(query) ||
+    normalizePhone(client.phone).includes(normalizePhone(clientSearch))
+  );
+
+  return <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+    <Panel title="Editar ficha">
+      <div className="space-y-3">
+        <Field label="Nombre" value={editingClient.name} onChange={v => setEditingClient(c => ({ ...c, name: v }))} />
+        <Field label="Email" type="email" value={editingClient.email || ''} onChange={v => setEditingClient(c => ({ ...c, email: v }))} />
+        <Field label="Telefono" value={editingClient.phone || ''} onChange={v => setEditingClient(c => ({ ...c, phone: v }))} />
+        <Field label="Foto URL" value={editingClient.photo_url || ''} onChange={v => setEditingClient(c => ({ ...c, photo_url: v }))} />
+        <Field label="Cumpleanos" type="date" value={editingClient.birthdate || ''} onChange={v => setEditingClient(c => ({ ...c, birthdate: v }))} />
+        <Field label="Alergias" value={editingClient.allergies || ''} onChange={v => setEditingClient(c => ({ ...c, allergies: v }))} />
+        <Field label="Preferencias" value={editingClient.preferences || ''} onChange={v => setEditingClient(c => ({ ...c, preferences: v }))} />
+        <textarea value={editingClient.notes || ''} onChange={e => setEditingClient(c => ({ ...c, notes: e.target.value }))} placeholder="Notas internas" className="h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+        <div className="flex gap-2">
+          <button onClick={saveClient} className="rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ficha</button>
+          <button onClick={() => setEditingClient(emptyClient)} className="rounded-full border border-rose-100 px-5 py-2 text-xs font-bold uppercase text-stone-600">Nueva</button>
+        </div>
+      </div>
+    </Panel>
+    <Panel title="Fichas de clientes">
+      <input value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Buscar por nombre, email o telefono" className="mb-5 w-full rounded-2xl border border-rose-100 px-4 py-3 text-sm outline-[#da4d73]" />
+      <div className="grid gap-3 md:grid-cols-2">
+        {visibleClients.map(client => <div key={client.key} className="rounded-2xl border border-rose-100 p-4">
+          <div className="flex items-start gap-3">
+            <div className="h-14 w-14 overflow-hidden rounded-2xl bg-rose-50">
+              {client.photo_url ? <img src={client.photo_url} alt={client.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center font-serif text-xl font-bold text-[#da4d73]">{client.name.slice(0, 1).toUpperCase()}</div>}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">{client.name}</p>
+              <p className="text-xs text-stone-500">{client.email || 'Sin email'}{client.phone ? ` · ${client.phone}` : ''}</p>
+              <p className="mt-2 text-[10px] uppercase tracking-widest text-stone-400">{client.appointments.length} citas encontradas</p>
+            </div>
+          </div>
+          {(client.notes || client.preferences || client.allergies) && <p className="mt-3 rounded-xl bg-rose-50/50 p-3 text-xs text-stone-600">{client.notes || client.preferences || client.allergies}</p>}
+          <div className="mt-3 max-h-28 space-y-1 overflow-auto">{client.appointments.slice(0, 5).map(ap => <div key={ap.id} className="rounded-lg bg-rose-50 px-2 py-1 text-[11px]">{ap.date} · {ap.service}</div>)}</div>
+          <div className="mt-3 flex gap-2">
+            <button onClick={() => setEditingClient({ ...client })} className="rounded-lg border border-rose-100 px-3 py-1 text-xs font-bold">Editar</button>
+            {client.id && <button onClick={() => removeClient(client.id)} className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">Eliminar</button>}
+          </div>
+        </div>)}
+      </div>
+    </Panel>
+  </div>;
 }
 
 function CatalogView(props: {
@@ -935,7 +1067,33 @@ function CatalogView(props: {
   </div>;
 }
 
-function ContentView({ posts, editingPost, setEditingPost, savePost, removePost, subscribers, exportSubscribers }: { posts: AdminPost[]; editingPost: AdminPost; setEditingPost: React.Dispatch<React.SetStateAction<AdminPost>>; savePost: () => Promise<void>; removePost: (id?: string) => Promise<void>; subscribers: Subscriber[]; exportSubscribers: () => void }) {
+function ContentView({
+  posts,
+  editingPost,
+  setEditingPost,
+  savePost,
+  removePost,
+  subscribers,
+  exportSubscribers,
+  newsletterDraft,
+  setNewsletterDraft,
+  sendNewsletter,
+  isSendingNewsletter,
+  campaigns
+}: {
+  posts: AdminPost[];
+  editingPost: AdminPost;
+  setEditingPost: React.Dispatch<React.SetStateAction<AdminPost>>;
+  savePost: () => Promise<void>;
+  removePost: (id?: string) => Promise<void>;
+  subscribers: Subscriber[];
+  exportSubscribers: () => void;
+  newsletterDraft: NewsletterDraft;
+  setNewsletterDraft: React.Dispatch<React.SetStateAction<NewsletterDraft>>;
+  sendNewsletter: () => Promise<void>;
+  isSendingNewsletter: boolean;
+  campaigns: NewsletterCampaign[];
+}) {
   const applyFormat = (tag: 'strong' | 'em' | 'p') => {
     const text = window.getSelection()?.toString();
     if (!text) return;
@@ -963,8 +1121,27 @@ function ContentView({ posts, editingPost, setEditingPost, savePost, removePost,
       <div className="space-y-2">{posts.map(post => <div key={post.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{post.title}</p><p className="text-xs text-stone-500">{post.category} · {post.read_time}</p><div className="mt-2 flex gap-2"><button onClick={() => setEditingPost(post)} className="rounded-lg border border-rose-100 px-3 py-1 text-xs font-bold">Editar</button><button onClick={() => removePost(post.id)} className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">Eliminar</button></div></div>)}</div>
     </Panel>
     <Panel title="Newsletter">
-      <button onClick={exportSubscribers} className="mb-4 rounded-full bg-stone-900 px-5 py-2 text-xs font-bold uppercase text-white">Exportar Excel</button>
-      <div className="max-h-[520px] space-y-2 overflow-auto">{subscribers.map(s => <div key={s.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{s.email}</p><p className="text-xs text-stone-500">{new Date(s.created_at).toLocaleString('es-ES')}</p></div>)}</div>
+      <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50/20 p-4">
+        <div className="mb-3 grid gap-3 md:grid-cols-2">
+          <Select label="Plantilla" value={newsletterDraft.template} onChange={value => setNewsletterDraft(newsletterTemplates[value] || newsletterTemplates.custom)}>
+            <option value="custom">Email personalizado</option>
+            <option value="promo">Promocion</option>
+            <option value="tips">Consejo beauty</option>
+          </Select>
+          <Field label="Asunto" value={newsletterDraft.subject} onChange={v => setNewsletterDraft(d => ({ ...d, subject: v }))} />
+        </div>
+        <textarea value={newsletterDraft.body_html} onChange={e => setNewsletterDraft(d => ({ ...d, body_html: e.target.value, template: d.template || 'custom' }))} className="h-44 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+        <div className="mt-3 rounded-xl bg-white p-3 text-sm" dangerouslySetInnerHTML={{ __html: newsletterDraft.body_html }} />
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button onClick={sendNewsletter} disabled={isSendingNewsletter} className="rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white disabled:opacity-50">{isSendingNewsletter ? 'Enviando...' : `Enviar a ${subscribers.length} emails`}</button>
+          <button onClick={exportSubscribers} className="rounded-full bg-stone-900 px-5 py-2 text-xs font-bold uppercase text-white">Exportar Excel</button>
+        </div>
+        <p className="mt-3 text-xs text-stone-500">Para enviar emails reales configura `RESEND_API_KEY` y opcionalmente `NEWSLETTER_FROM_EMAIL` en Supabase Edge Functions.</p>
+      </div>
+      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Campanas recientes</h4>
+      <div className="mb-5 max-h-40 space-y-2 overflow-auto">{campaigns.map(c => <div key={c.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{c.subject}</p><p className="text-xs text-stone-500">{c.status} · {c.recipient_count} destinatarios · {new Date(c.created_at).toLocaleString('es-ES')}</p>{c.error_message && <p className="mt-1 text-xs text-rose-600">{c.error_message}</p>}</div>)}</div>
+      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-400">Emails registrados</h4>
+      <div className="max-h-[320px] space-y-2 overflow-auto">{subscribers.map(s => <div key={s.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{s.email}</p><p className="text-xs text-stone-500">{new Date(s.created_at).toLocaleString('es-ES')}</p></div>)}</div>
     </Panel>
   </div>;
 }

@@ -2,6 +2,7 @@ import { createAdminClient } from '../_shared/admin.ts';
 import { handleOptions, jsonResponse } from '../_shared/http.ts';
 
 const cents = (value: unknown) => Math.round(Number(value || 0) * 100);
+const asText = (value: unknown) => String(value || '').trim();
 
 Deno.serve(async (req) => {
   const optionsResponse = handleOptions(req);
@@ -14,7 +15,7 @@ Deno.serve(async (req) => {
     const action = String(body.action || 'load');
 
     if (action === 'load') {
-      const [products, services, stylists, staff, sales, saleItems, closures, settings, policy, posts, subscribers] = await Promise.all([
+      const [products, services, stylists, staff, sales, saleItems, closures, settings, policy, posts, subscribers, clients, campaigns] = await Promise.all([
         supabase.from('products').select('*').order('name'),
         supabase.from('services').select('*').order('name'),
         supabase.from('stylists').select('*').order('name'),
@@ -25,9 +26,11 @@ Deno.serve(async (req) => {
         supabase.from('salon_settings').select('*').eq('id', true).maybeSingle(),
         supabase.from('no_show_policy').select('*').eq('id', true).maybeSingle(),
         supabase.from('blog_posts').select('*').order('published_date', { ascending: false }).limit(100),
-        supabase.from('newsletter_subscribers').select('*').order('created_at', { ascending: false }).limit(1000)
+        supabase.from('newsletter_subscribers').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('client_profiles').select('*').order('name').limit(1000),
+        supabase.from('newsletter_campaigns').select('*').order('created_at', { ascending: false }).limit(100)
       ]);
-      for (const result of [products, services, stylists, staff, sales, saleItems, closures, settings, policy, posts, subscribers]) {
+      for (const result of [products, services, stylists, staff, sales, saleItems, closures, settings, policy, posts, subscribers, clients, campaigns]) {
         if (result.error) throw result.error;
       }
       return jsonResponse({
@@ -41,7 +44,9 @@ Deno.serve(async (req) => {
         settings: settings.data,
         policy: policy.data,
         posts: posts.data || [],
-        subscribers: subscribers.data || []
+        subscribers: subscribers.data || [],
+        clients: clients.data || [],
+        campaigns: campaigns.data || []
       });
     }
 
@@ -190,6 +195,87 @@ Deno.serve(async (req) => {
       return jsonResponse({ subscriber: data });
     }
 
+    if (action === 'upsert_client') {
+      const client = body.client || {};
+      const payload = {
+        id: client.id || undefined,
+        name: asText(client.name),
+        email: asText(client.email).toLowerCase() || null,
+        phone: asText(client.phone) || null,
+        photo_url: asText(client.photo_url || client.photoUrl) || null,
+        notes: asText(client.notes) || null,
+        birthdate: asText(client.birthdate) || null,
+        allergies: asText(client.allergies) || null,
+        preferences: asText(client.preferences) || null
+      };
+      if (!payload.name) return jsonResponse({ error: 'Falta el nombre del cliente.' }, 400);
+      const { data, error } = await supabase.from('client_profiles').upsert(payload).select('*').single();
+      if (error) throw error;
+      return jsonResponse({ client: data });
+    }
+
+    if (action === 'delete_client') {
+      const { error } = await supabase.from('client_profiles').delete().eq('id', body.id);
+      if (error) throw error;
+      return jsonResponse({ ok: true });
+    }
+
+    if (action === 'send_newsletter') {
+      const subject = asText(body.subject);
+      const template = asText(body.template) || 'custom';
+      const bodyHtml = asText(body.body_html || body.bodyHtml);
+      if (!subject || !bodyHtml) return jsonResponse({ error: 'Faltan asunto o contenido.' }, 400);
+
+      const { data: subscribers, error: subscribersError } = await supabase
+        .from('newsletter_subscribers')
+        .select('email')
+        .order('created_at', { ascending: false });
+      if (subscribersError) throw subscribersError;
+      const recipients = [...new Set((subscribers || []).map((s: { email: string }) => s.email).filter(Boolean))];
+      if (!recipients.length) return jsonResponse({ error: 'No hay emails en el newsletter.' }, 400);
+
+      const resendKey = Deno.env.get('RESEND_API_KEY');
+      const fromEmail = Deno.env.get('NEWSLETTER_FROM_EMAIL') || 'Peluqueria Maria <newsletter@peluqueriamaria.com>';
+      let status = 'sent';
+      let errorMessage = '';
+
+      if (!resendKey) {
+        status = 'failed';
+        errorMessage = 'Falta RESEND_API_KEY en Supabase Edge Functions.';
+      } else {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: recipients,
+            subject,
+            html: bodyHtml
+          })
+        });
+        if (!response.ok) {
+          status = 'failed';
+          errorMessage = await response.text();
+        }
+      }
+
+      const { data: campaign, error } = await supabase.from('newsletter_campaigns').insert({
+        subject,
+        template,
+        body_html: bodyHtml,
+        status,
+        recipient_count: recipients.length,
+        sent_at: status === 'sent' ? new Date().toISOString() : null,
+        error_message: errorMessage || null
+      }).select('*').single();
+      if (error) throw error;
+      if (status === 'failed') return jsonResponse({ campaign, error: errorMessage }, 500);
+      return jsonResponse({ campaign });
+    }
+
     if (action === 'create_appointment') {
       const appointment = body.appointment || {};
       const serviceId = String(appointment.serviceId || appointment.service_id || '');
@@ -224,6 +310,14 @@ Deno.serve(async (req) => {
 
       const { data, error } = await supabase.from('appointments').insert(payload).select('*').single();
       if (error) throw error;
+      if (payload.client_email) {
+        const existingClient = await supabase.from('client_profiles').select('id').eq('email', payload.client_email).maybeSingle();
+        if (existingClient.data?.id) {
+          await supabase.from('client_profiles').update({ name: payload.client_name, phone: payload.client_phone }).eq('id', existingClient.data.id);
+        } else {
+          await supabase.from('client_profiles').insert({ name: payload.client_name, email: payload.client_email, phone: payload.client_phone });
+        }
+      }
       return jsonResponse({ appointment: data });
     }
 
