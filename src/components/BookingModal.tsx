@@ -19,7 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
+import { loadStripe, SetupIntentResult, StripeElementsOptions } from '@stripe/stripe-js';
 import { invokeFunction } from '../lib/supabase';
 import { Appointment, Service } from '../types';
 
@@ -332,18 +332,25 @@ function StripeBookingFields(props: PaymentBookingFormProps) {
     if (!stripe || !elements || !props.clientName.trim() || !props.clientEmail.trim()) return;
 
     setIsSubmitting(true);
-    const result = await stripe.confirmSetup({
-      elements,
-      confirmParams: {
-        payment_method_data: {
-          billing_details: {
-            name: props.clientName.trim(),
-            email: props.clientEmail.trim()
+    let result: SetupIntentResult;
+    try {
+      result = await stripe.confirmSetup({
+        elements,
+        confirmParams: {
+          payment_method_data: {
+            billing_details: {
+              name: props.clientName.trim(),
+              email: props.clientEmail.trim()
+            }
           }
-        }
-      },
-      redirect: 'if_required'
-    });
+        },
+        redirect: 'if_required'
+      });
+    } catch (error) {
+      setIsSubmitting(false);
+      setSubmitError(error instanceof Error ? error.message : 'No se pudo validar la tarjeta.');
+      return;
+    }
     setIsSubmitting(false);
 
     if (result.error) {
@@ -394,7 +401,6 @@ function StripeBookingFields(props: PaymentBookingFormProps) {
                 billingDetails: {
                   name: 'never',
                   email: 'never',
-                  phone: 'never',
                   address: 'never'
                 }
               },
