@@ -94,7 +94,7 @@ type Subscriber = { id: string; email: string; created_at: string; source?: stri
 type SavedClientProfile = { id?: string; name: string; email?: string; phone?: string; photo_url?: string; notes?: string; birthdate?: string; allergies?: string; preferences?: string; created_at?: string; updated_at?: string };
 type NewsletterCampaign = { id: string; subject: string; template: string; body_html: string; status: 'draft' | 'sent' | 'failed'; recipient_count: number; sent_at?: string; error_message?: string; created_at: string };
 type NewsletterDraft = { subject: string; template: string; body_html: string };
-type Salon = { id: string; name: string; slug: string; address?: string; phone?: string; email?: string };
+type Salon = { id: string; name: string; slug: string; address?: string; phone?: string; email?: string; brand_color?: string };
 
 type AdminStaff = { id?: string; auth_user_id?: string; stylist_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
 type PosSale = { id: string; appointment_id?: string; client_name?: string; client_email?: string; payment_method: 'cash' | 'card'; total_cents: number; created_at: string };
@@ -186,6 +186,7 @@ const newsletterTemplates: Record<string, NewsletterDraft> = {
 const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: '', serviceId: '', stylistId: '', date: isoDate(today()), time: '10:00' };
 const staffToStylists = (staff: AdminStaff[]): StaffStylist[] =>
   staff.filter(s => s.is_active !== false && s.stylist_id).map(s => ({ id: s.stylist_id as string, name: s.name, email: s.email }));
+const normalizeColor = (value?: string) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value as string : '#da4d73';
 
 export default function DashboardView({ appointments, stylists, currentUserEmail, onToggleStatus, onDeleteAppointment, onChargeNoShow, onUpdateAppointmentStatus, onOpenBooking, onAddAppointment, onLogout }: DashboardViewProps) {
   const now = today();
@@ -242,6 +243,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const [salons, setSalons] = useState<Salon[]>([]);
   const [selectedSalonId, setSelectedSalonId] = useState('');
   const [newSalonName, setNewSalonName] = useState('');
+  const [newSalonColor, setNewSalonColor] = useState('#da4d73');
 
   const notify = (message: string, type: Notice['type'] = 'success', title = type === 'error' ? 'Revisa esto' : 'Listo') => {
     const notice = { id: Date.now(), title, message, type };
@@ -341,6 +343,8 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   }, [stylists]);
 
   const currentStaff = staff.find(s => s.email === currentUserEmail);
+  const currentSalon = salons.find(salon => salon.id === selectedSalonId) || salons[0];
+  const salonColor = normalizeColor(currentSalon?.brand_color);
   const professionals = staffStylists.length ? staffStylists : stylists;
   const currentStylist = currentStaff?.stylist_id ? professionals.find(s => s.id === currentStaff.stylist_id) : undefined;
   const appointmentsForSalon = selectedSalonId ? appointments.filter(ap => !ap.salonId || ap.salonId === selectedSalonId) : appointments;
@@ -398,12 +402,45 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     if (!newSalonName.trim()) return notify('Pon el nombre del salon.', 'error');
     const { salon } = await invokeFunction<{ salon: Salon }>('admin-panel', {
       action: 'create_salon',
-      salon: { name: newSalonName.trim() }
+      salon: { name: newSalonName.trim(), brand_color: newSalonColor }
     });
     setSalons(prev => [...prev, salon].sort((a, b) => a.name.localeCompare(b.name)));
     setSelectedSalonId(salon.id);
     setNewSalonName('');
+    setNewSalonColor('#da4d73');
     notify('Salon creado.');
+  };
+
+  const updateSalon = async (updates: Partial<Salon>) => {
+    if (!currentSalon) return notify('Selecciona un salon.', 'error');
+    const nextSalon = { ...currentSalon, ...updates };
+    if (!nextSalon.name.trim()) return notify('El salon necesita nombre.', 'error');
+    const { salon } = await invokeFunction<{ salon: Salon }>('admin-panel', {
+      action: 'update_salon',
+      salon: nextSalon
+    });
+    setSalons(prev => prev.map(item => item.id === salon.id ? salon : item).sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const renameSalon = async () => {
+    if (!currentSalon) return;
+    const name = window.prompt('Nuevo nombre del salon', currentSalon.name);
+    if (name === null) return;
+    await updateSalon({ name: name.trim() });
+    notify('Salon actualizado.');
+  };
+
+  const deleteSalon = async () => {
+    if (!currentSalon) return;
+    if (salons.length <= 1) return notify('No puedes eliminar el ultimo salon activo.', 'error');
+    if (!window.confirm(`Eliminar el salon "${currentSalon.name}"? Sus datos quedaran ocultos en el panel.`)) return;
+    const { selectedSalonId: nextSalonId } = await invokeFunction<{ selectedSalonId?: string }>('admin-panel', {
+      action: 'delete_salon',
+      salonId: currentSalon.id
+    });
+    setSalons(prev => prev.filter(salon => salon.id !== currentSalon.id));
+    setSelectedSalonId(nextSalonId || salons.find(salon => salon.id !== currentSalon.id)?.id || '');
+    notify('Salon eliminado.');
   };
 
   const savePost = async () => {
@@ -645,12 +682,12 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff1f4_0,#fffbfb_36%,#f8fafc_100%)] text-stone-900 md:pl-72">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff1f4_0,#fffbfb_36%,#f8fafc_100%)] text-stone-900 md:pl-72" style={{ '--salon-color': salonColor } as React.CSSProperties}>
       <NoticeStack notices={notices} onDismiss={id => setNotices(prev => prev.filter(item => item.id !== id))} />
       <aside className="fixed left-0 top-0 hidden md:flex h-screen w-72 flex-col border-r border-rose-100/70 bg-white/85 p-5 shadow-[20px_0_60px_rgba(190,18,60,0.06)] backdrop-blur-2xl">
         <div className="mb-6 rounded-3xl border border-rose-100 bg-gradient-to-br from-white via-rose-50 to-pink-50 px-5 py-5 text-stone-900 shadow-xl shadow-rose-100/70">
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#da4d73]/70">Admin Portal</p>
-          <h1 className="mt-2 font-serif text-3xl font-bold text-stone-950">Maria</h1>
+          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[var(--salon-color)]">Admin Portal</p>
+          <h1 className="mt-2 font-serif text-3xl font-bold text-stone-950">{currentSalon?.name || 'Maria'}</h1>
           <p className="mt-2 text-xs leading-relaxed text-stone-500">Reservas, caja, clientes y contenidos en un solo panel.</p>
         </div>
         <nav className="flex flex-col gap-2 text-xs font-bold">
@@ -664,7 +701,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           <NavButton active={activeTab === 'settings'} icon={<Settings className="w-4 h-4" />} label="Ajustes y no-show" onClick={() => setActiveTab('settings')} />
           <NavButton active={activeTab === 'pos'} icon={<ShoppingCart className="w-4 h-4" />} label="POS tactil" onClick={() => setActiveTab('pos')} />
         </nav>
-        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-[#da4d73] px-4 py-3 text-xs font-bold uppercase text-white shadow-lg shadow-rose-200 transition-transform active:scale-95">
+        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--salon-color)] px-4 py-3 text-xs font-bold uppercase text-white shadow-lg shadow-rose-200 transition-transform active:scale-95">
           <Plus className="w-4 h-4" /> Nueva reserva
         </button>
         <button onClick={onLogout} className="mt-3 inline-flex items-center justify-center rounded-2xl border border-rose-100 bg-white px-4 py-3 text-xs font-bold uppercase text-stone-600 hover:bg-rose-50">
@@ -675,14 +712,22 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       <main className="p-5 pt-8 md:p-10">
         <header className="mb-8 flex flex-col gap-4 rounded-[2rem] border border-white/80 bg-white/70 p-5 shadow-sm backdrop-blur-xl md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-[#da4d73]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-[var(--salon-color)]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <h2 className="font-serif text-3xl font-bold">Panel de control</h2>
             <div className="mt-4 flex flex-wrap items-end gap-2">
               <Select label="Salon activo" value={selectedSalonId} onChange={setSelectedSalonId}>
                 {salons.map(salon => <option key={salon.id} value={salon.id}>{salon.name}</option>)}
               </Select>
+              {currentSalon && (
+                <>
+                  <button onClick={renameSalon} className="rounded-xl border border-rose-100 bg-white px-4 py-2 text-xs font-bold uppercase text-stone-700 hover:bg-rose-50">Editar nombre</button>
+                  <Field label="Color panel" type="color" value={salonColor} onChange={value => updateSalon({ brand_color: value })} />
+                  <button onClick={deleteSalon} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold uppercase text-rose-600 hover:bg-rose-50">Eliminar salon</button>
+                </>
+              )}
               <Field label="Nuevo salon" value={newSalonName} onChange={setNewSalonName} />
-              <button onClick={createSalon} className="rounded-xl bg-[#da4d73] px-4 py-2 text-xs font-bold uppercase text-white">Crear salon</button>
+              <Field label="Color nuevo" type="color" value={newSalonColor} onChange={setNewSalonColor} />
+              <button onClick={createSalon} className="rounded-xl bg-[var(--salon-color)] px-4 py-2 text-xs font-bold uppercase text-white">Crear salon</button>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex">
@@ -725,7 +770,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
                     <Field label="Hasta" type="date" value={rangeEnd} onChange={setRangeEnd} />
                   </>
                 )}
-                <button onClick={onOpenBooking} className="rounded-full bg-[#da4d73] px-5 py-3 text-xs font-bold uppercase text-white">Nueva cita online</button>
+                <button onClick={onOpenBooking} className="rounded-full bg-[var(--salon-color)] px-5 py-3 text-xs font-bold uppercase text-white">Nueva cita online</button>
               </div>
             </section>
 
@@ -813,9 +858,9 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
                     const isToday = date === isoDate(now);
                     const hasAppointment = appointmentsForSalon.some(ap => ap.date === date);
                     return (
-                      <button key={date} onClick={() => { setSpecificDate(date); setDateFilter('specific'); }} className={`relative rounded-lg py-3 font-bold ${!isCurrentMonth ? 'text-stone-300' : isToday ? 'bg-[#da4d73] text-white' : 'hover:bg-rose-50'}`}>
+                      <button key={date} onClick={() => { setSpecificDate(date); setDateFilter('specific'); }} className={`relative rounded-lg py-3 font-bold ${!isCurrentMonth ? 'text-stone-300' : isToday ? 'bg-[var(--salon-color)] text-white' : 'hover:bg-rose-50'}`}>
                         {day.getDate()}
-                        {hasAppointment && <span className={`absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${isToday ? 'bg-white' : 'bg-[#da4d73]'}`} />}
+                        {hasAppointment && <span className={`absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${isToday ? 'bg-white' : 'bg-[var(--salon-color)]'}`} />}
                       </button>
                     );
                   })}
@@ -887,7 +932,7 @@ function DailySchedulePage({
     <section className="min-h-[78vh]">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#da4d73]">Calendario operativo</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[var(--salon-color)]">Calendario operativo</p>
           <h3 className="font-serif text-4xl font-bold">Agenda del dia</h3>
         </div>
         <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-rose-100 bg-white p-3 shadow-sm">
@@ -930,7 +975,7 @@ function DailySchedulePage({
                           </div>
                           <p className="mt-2 font-bold">{ap.clientName}</p>
                           <p className="text-xs text-stone-500">{ap.service}</p>
-                          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-[#da4d73]">{eur(ap.price)}</p>
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-[var(--salon-color)]">{eur(ap.price)}</p>
                         </div>
                       ))}
                     </div>
@@ -955,11 +1000,11 @@ function appointmentHour(time: string) {
   return hour;
 }
 function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${active ? 'bg-[#da4d73] text-white shadow-lg shadow-rose-200' : 'text-stone-500 hover:bg-rose-50/80 hover:text-stone-900'}`}>{icon}<span>{label}</span></button>;
+  return <button onClick={onClick} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${active ? 'bg-[var(--salon-color)] text-white shadow-lg shadow-rose-200' : 'text-stone-500 hover:bg-rose-50/80 hover:text-stone-900'}`}>{icon}<span>{label}</span></button>;
 }
 
 function MobileTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`rounded-full px-3 py-2 text-[10px] font-bold uppercase ${active ? 'bg-[#da4d73] text-white' : 'bg-white text-stone-500 border border-rose-100'}`}>{label}</button>;
+  return <button onClick={onClick} className={`rounded-full px-3 py-2 text-[10px] font-bold uppercase ${active ? 'bg-[var(--salon-color)] text-white' : 'bg-white text-stone-500 border border-rose-100'}`}>{label}</button>;
 }
 
 function NoticeStack({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id: number) => void }) {
@@ -984,15 +1029,15 @@ function NoticeStack({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-100"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-[#da4d73]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
+  return <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-100"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-[var(--salon-color)]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
 }
 
 function Field({ label, value, onChange, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; type?: string }) {
-  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[#da4d73]" /></label>;
+  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[var(--salon-color)]" /></label>;
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<select value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[#da4d73]">{children}</select></label>;
+  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<select value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[var(--salon-color)]">{children}</select></label>;
 }
 
 function IconButton({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
@@ -1005,7 +1050,7 @@ function MenuAction({ children, onClick, danger = false }: { children: React.Rea
 
 function Status({ appointment }: { appointment: Appointment }) {
   const label = appointment.status === 'NoShow' ? 'No-show' : appointment.status === 'Confirmed' ? 'Confirmada' : appointment.status === 'Cancelled' ? 'Cancelada' : 'Pendiente';
-  return <div className="flex flex-col gap-1"><span className="w-fit rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-[#da4d73]">{label}</span>{appointment.paymentGuaranteeStatus === 'charged' && <span className="w-fit rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-bold text-stone-700">No-show cobrado</span>}{appointment.paymentGuaranteeStatus === 'secured' && <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">Tarjeta guardada</span>}</div>;
+  return <div className="flex flex-col gap-1"><span className="w-fit rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-[var(--salon-color)]">{label}</span>{appointment.paymentGuaranteeStatus === 'charged' && <span className="w-fit rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-bold text-stone-700">No-show cobrado</span>}{appointment.paymentGuaranteeStatus === 'secured' && <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">Tarjeta guardada</span>}</div>;
 }
 
 function ClientsView({

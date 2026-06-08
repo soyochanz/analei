@@ -6,6 +6,10 @@ const cents = (value: unknown) => Math.round(Number(value || 0) * 100);
 const asText = (value: unknown) => String(value || '').trim();
 const slugify = (value: string) =>
   value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `salon-${Date.now()}`;
+const normalizeColor = (value: unknown) => {
+  const color = asText(value);
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#da4d73';
+};
 
 Deno.serve(async (req) => {
   const optionsResponse = handleOptions(req);
@@ -75,6 +79,7 @@ Deno.serve(async (req) => {
         address: asText(salon.address) || null,
         phone: asText(salon.phone) || null,
         email: asText(salon.email) || null,
+        brand_color: normalizeColor(salon.brand_color || salon.brandColor),
         is_active: true
       };
       const { data, error } = await supabase.from('salons').insert(payload).select('*').single();
@@ -82,6 +87,49 @@ Deno.serve(async (req) => {
       await supabase.from('salon_settings').insert({ id: true, salon_id: data.id, salon_name: data.name, phone: data.phone, email: data.email, address: data.address, opening_time: '09:00', closing_time: '20:30' });
       await supabase.from('no_show_policy').insert({ id: true, salon_id: data.id, enabled: true, charge_type: 'fixed', fixed_cents: 4000, percentage: 50, cancellation_hours: 24 });
       return jsonResponse({ salon: data });
+    }
+
+    if (action === 'update_salon') {
+      const salon = body.salon || {};
+      const id = asText(salon.id || body.salonId || body.salon_id);
+      const name = asText(salon.name);
+      if (!id) return jsonResponse({ error: 'Falta el salon.' }, 400);
+      if (!name) return jsonResponse({ error: 'Falta el nombre del salon.' }, 400);
+      const payload = {
+        name,
+        slug: asText(salon.slug) || slugify(name),
+        address: asText(salon.address) || null,
+        phone: asText(salon.phone) || null,
+        email: asText(salon.email) || null,
+        brand_color: normalizeColor(salon.brand_color || salon.brandColor)
+      };
+      const { data, error } = await supabase.from('salons').update(payload).eq('id', id).select('*').single();
+      if (error) throw error;
+      await supabase.from('salon_settings').upsert({
+        id: true,
+        salon_id: data.id,
+        salon_name: data.name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address
+      }, { onConflict: 'salon_id' });
+      return jsonResponse({ salon: data });
+    }
+
+    if (action === 'delete_salon') {
+      const id = asText(body.salonId || body.salon_id || body.id);
+      if (!id) return jsonResponse({ error: 'Falta el salon.' }, 400);
+      const { count, error: countError } = await supabase
+        .from('salons')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true);
+      if (countError) throw countError;
+      if ((count || 0) <= 1) return jsonResponse({ error: 'No puedes eliminar el ultimo salon activo.' }, 400);
+      const { error } = await supabase.from('salons').update({ is_active: false }).eq('id', id);
+      if (error) throw error;
+      const next = await supabase.from('salons').select('id').eq('is_active', true).neq('id', id).order('created_at').limit(1).maybeSingle();
+      if (next.error) throw next.error;
+      return jsonResponse({ ok: true, selectedSalonId: next.data?.id || null });
     }
 
     if (action === 'upsert_product') {
