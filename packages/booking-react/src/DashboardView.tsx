@@ -5,6 +5,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
+  BarChart3,
   CalendarDays,
   Check,
   CreditCard,
@@ -18,6 +20,7 @@ import {
   Settings,
   ShoppingCart,
   Trash2,
+  TrendingUp,
   UserPlus,
   Users,
   X
@@ -615,12 +618,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   return (
-    <div className="min-h-screen bg-[#fffbfb] text-stone-900 md:pl-64">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff1f4_0,#fffbfb_36%,#f8fafc_100%)] text-stone-900 md:pl-72">
       <NoticeStack notices={notices} onDismiss={id => setNotices(prev => prev.filter(item => item.id !== id))} />
-      <aside className="fixed left-0 top-0 hidden md:flex h-screen w-64 flex-col border-r border-rose-100 bg-white p-5 shadow-sm">
-        <div className="mb-6 px-2 py-4">
-          <h1 className="font-serif text-3xl font-bold text-[#da4d73]">Maria</h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Admin Portal</p>
+      <aside className="fixed left-0 top-0 hidden md:flex h-screen w-72 flex-col border-r border-rose-100/70 bg-white/85 p-5 shadow-[20px_0_60px_rgba(190,18,60,0.06)] backdrop-blur-2xl">
+        <div className="mb-6 rounded-3xl bg-gradient-to-br from-[#da4d73] to-stone-950 px-5 py-5 text-white shadow-xl shadow-rose-200/60">
+          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-white/60">Admin Portal</p>
+          <h1 className="mt-2 font-serif text-3xl font-bold">Maria</h1>
+          <p className="mt-2 text-xs leading-relaxed text-white/70">Reservas, caja, clientes y contenidos en un solo panel.</p>
         </div>
         <nav className="flex flex-col gap-2 text-xs font-bold">
           <NavButton active={activeTab === 'dashboard'} icon={<CalendarDays className="w-4 h-4" />} label="Agenda" onClick={() => setActiveTab('dashboard')} />
@@ -633,16 +637,16 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           <NavButton active={activeTab === 'settings'} icon={<Settings className="w-4 h-4" />} label="Ajustes y no-show" onClick={() => setActiveTab('settings')} />
           <NavButton active={activeTab === 'pos'} icon={<ShoppingCart className="w-4 h-4" />} label="POS tactil" onClick={() => setActiveTab('pos')} />
         </nav>
-        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#da4d73] px-4 py-3 text-xs font-bold uppercase text-white">
+        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-[#da4d73] px-4 py-3 text-xs font-bold uppercase text-white shadow-lg shadow-rose-200 transition-transform active:scale-95">
           <Plus className="w-4 h-4" /> Nueva reserva
         </button>
-        <button onClick={onLogout} className="mt-3 inline-flex items-center justify-center rounded-full border border-rose-100 bg-white px-4 py-3 text-xs font-bold uppercase text-stone-600 hover:bg-rose-50">
+        <button onClick={onLogout} className="mt-3 inline-flex items-center justify-center rounded-2xl border border-rose-100 bg-white px-4 py-3 text-xs font-bold uppercase text-stone-600 hover:bg-rose-50">
           Logout
         </button>
       </aside>
 
       <main className="p-5 pt-8 md:p-10">
-        <header className="mb-8 flex flex-col gap-4 border-b border-rose-100 pb-6 md:flex-row md:items-end md:justify-between">
+        <header className="mb-8 flex flex-col gap-4 rounded-[2rem] border border-white/80 bg-white/70 p-5 shadow-sm backdrop-blur-xl md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#da4d73]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <h2 className="font-serif text-3xl font-bold">Panel de control</h2>
@@ -917,7 +921,7 @@ function appointmentHour(time: string) {
   return hour;
 }
 function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left ${active ? 'bg-rose-50 text-[#da4d73]' : 'text-stone-500 hover:bg-rose-50/60'}`}>{icon}{label}</button>;
+  return <button onClick={onClick} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${active ? 'bg-[#da4d73] text-white shadow-lg shadow-rose-200' : 'text-stone-500 hover:bg-rose-50/80 hover:text-stone-900'}`}>{icon}<span>{label}</span></button>;
 }
 
 function MobileTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
@@ -946,7 +950,7 @@ function NoticeStack({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm"><div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-[#da4d73]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
+  return <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-100"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-[#da4d73]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
 }
 
 function Field({ label, value, onChange, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; type?: string }) {
@@ -1481,11 +1485,129 @@ function AnalyticsView({ sales, saleItems, appointments }: { sales: PosSale[]; s
   const total = sales.reduce((sum, sale) => sum + sale.total_cents / 100, 0);
   const card = sales.filter(s => s.payment_method === 'card').reduce((sum, sale) => sum + sale.total_cents / 100, 0);
   const cash = sales.filter(s => s.payment_method === 'cash').reduce((sum, sale) => sum + sale.total_cents / 100, 0);
-  return <div className="grid gap-6 xl:grid-cols-3"><Metric icon={<CreditCard className="w-5 h-5" />} label="Total POS" value={eur(total)} /><Metric icon={<ShoppingCart className="w-5 h-5" />} label="Tarjeta" value={eur(card)} /><Metric icon={<ShoppingCart className="w-5 h-5" />} label="Cash" value={eur(cash)} /><div className="xl:col-span-2"><DailyRevenuePanel salesByDay={salesByDay} saleItems={saleItems} /></div><Panel title="Ingresos por servicio/producto"><Rows data={byItem} /></Panel><Panel title="Agenda"><p className="text-sm">Citas totales: <b>{appointments.length}</b></p><p className="text-sm">No-show: <b>{appointments.filter(a => a.status === 'NoShow').length}</b></p><p className="text-sm">Confirmadas: <b>{appointments.filter(a => a.status === 'Confirmed').length}</b></p></Panel></div>;
+  const ticketAverage = sales.length ? total / sales.length : 0;
+  const noShows = appointments.filter(a => a.status === 'NoShow').length;
+  const confirmed = appointments.filter(a => a.status === 'Confirmed').length;
+
+  return <div className="space-y-6">
+    <section className="rounded-[2rem] border border-white/80 bg-gradient-to-br from-stone-950 via-stone-900 to-[#8f2c4a] p-6 text-white shadow-2xl shadow-rose-950/10">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.35em] text-rose-200">Analiticas</p>
+          <h3 className="mt-2 font-serif text-4xl font-bold">Rendimiento del salon</h3>
+          <p className="mt-2 text-sm text-white/60">Ingresos, metodos de pago, agenda y tickets con detalle operativo.</p>
+        </div>
+        <div className="rounded-2xl bg-white/10 px-4 py-3 text-right backdrop-blur">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Ticket medio</p>
+          <p className="font-serif text-3xl font-bold">{eur(ticketAverage)}</p>
+        </div>
+      </div>
+    </section>
+
+    <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <InsightMetric icon={<CreditCard className="h-5 w-5" />} label="Total POS" value={eur(total)} sub={`${sales.length} transacciones`} tone="rose" />
+      <InsightMetric icon={<BarChart3 className="h-5 w-5" />} label="Tarjeta" value={eur(card)} sub={`${Math.round((card / Math.max(total, 1)) * 100)}% del total`} tone="emerald" />
+      <InsightMetric icon={<ShoppingCart className="h-5 w-5" />} label="Cash" value={eur(cash)} sub={`${Math.round((cash / Math.max(total, 1)) * 100)}% del total`} tone="amber" />
+      <InsightMetric icon={<Activity className="h-5 w-5" />} label="Agenda" value={`${confirmed}/${appointments.length}`} sub={`${noShows} no-show`} tone="stone" />
+    </section>
+
+    <section className="grid gap-6 xl:grid-cols-12">
+      <div className="xl:col-span-8"><RevenueChartPanel salesByDay={salesByDay} /></div>
+      <div className="xl:col-span-4"><PaymentMixPanel card={card} cash={cash} total={total} /></div>
+      <div className="xl:col-span-8"><DailyRevenuePanel salesByDay={salesByDay} saleItems={saleItems} /></div>
+      <div className="xl:col-span-4"><Panel title="Top servicios/productos"><RankingRows data={byItem} /></Panel></div>
+    </section>
+  </div>;
 }
 
 function Rows({ data }: { data: Record<string, number> }) {
   return <div className="space-y-2">{Object.entries(data).sort((a,b) => b[1] - a[1]).map(([label, value]) => <div key={label} className="flex justify-between rounded-xl bg-rose-50/40 p-3 text-sm"><span>{label}</span><b>{eur(value)}</b></div>)}</div>;
+}
+
+function InsightMetric({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub: string; tone: 'rose' | 'emerald' | 'amber' | 'stone' }) {
+  const toneClass = {
+    rose: 'from-rose-50 to-white text-[#da4d73]',
+    emerald: 'from-emerald-50 to-white text-emerald-700',
+    amber: 'from-amber-50 to-white text-amber-700',
+    stone: 'from-stone-100 to-white text-stone-800'
+  }[tone];
+  return <div className="group overflow-hidden rounded-[1.5rem] border border-white/80 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-100">
+    <div className={`mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${toneClass}`}>
+      {icon}
+    </div>
+    <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p>
+    <p className="mt-1 font-serif text-3xl font-bold text-stone-950">{value}</p>
+    <p className="mt-2 flex items-center gap-1 text-xs font-bold text-stone-500"><TrendingUp className="h-3.5 w-3.5 text-emerald-600" />{sub}</p>
+  </div>;
+}
+
+function RevenueChartPanel({ salesByDay }: { salesByDay: Record<string, PosSale[]> }) {
+  const rows = Object.entries(salesByDay)
+    .map(([day, daySales]) => ({ day, total: daySales.reduce((sum, sale) => sum + sale.total_cents / 100, 0), count: daySales.length }))
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .slice(-10);
+  const max = Math.max(1, ...rows.map(row => row.total));
+
+  return <Panel title="Ingresos ultimos dias">
+    <div className="flex h-80 items-end gap-3 rounded-[1.5rem] bg-gradient-to-b from-rose-50/70 to-white p-4">
+      {rows.length === 0 && <p className="self-center text-sm text-stone-500">Todavia no hay datos suficientes.</p>}
+      {rows.map(row => {
+        const height = Math.max(8, Math.round((row.total / max) * 100));
+        return <div key={row.day} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+          <div className="flex h-56 w-full items-end">
+            <div
+              className="w-full rounded-t-2xl bg-gradient-to-t from-[#da4d73] to-rose-300 shadow-lg shadow-rose-200 transition-all duration-700 ease-out"
+              style={{ height: `${height}%` }}
+              title={`${row.day}: ${eur(row.total)}`}
+            />
+          </div>
+          <p className="text-[10px] font-black text-stone-800">{eur(row.total)}</p>
+          <p className="text-[10px] font-bold uppercase text-stone-400">{new Date(`${row.day}T12:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}</p>
+          <p className="text-[10px] text-stone-400">{row.count} cobros</p>
+        </div>;
+      })}
+    </div>
+  </Panel>;
+}
+
+function PaymentMixPanel({ card, cash, total }: { card: number; cash: number; total: number }) {
+  const cardPct = Math.round((card / Math.max(total, 1)) * 100);
+  const cashPct = Math.round((cash / Math.max(total, 1)) * 100);
+  return <Panel title="Mix de pago">
+    <div className="space-y-5">
+      <div className="relative mx-auto flex h-52 w-52 items-center justify-center rounded-full bg-[conic-gradient(#10b981_0deg,#10b981_var(--card),#f59e0b_var(--card),#f59e0b_360deg)] shadow-inner" style={{ '--card': `${cardPct * 3.6}deg` } as React.CSSProperties}>
+        <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white shadow-lg">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Total</p>
+          <p className="font-serif text-2xl font-bold">{eur(total)}</p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <MixRow label="Tarjeta" value={eur(card)} pct={cardPct} className="bg-emerald-500" />
+        <MixRow label="Cash" value={eur(cash)} pct={cashPct} className="bg-amber-500" />
+      </div>
+    </div>
+  </Panel>;
+}
+
+function MixRow({ label, value, pct, className }: { label: string; value: string; pct: number; className: string }) {
+  return <div>
+    <div className="mb-1 flex justify-between text-xs"><b>{label}</b><span>{value} · {pct}%</span></div>
+    <div className="h-2 overflow-hidden rounded-full bg-stone-100"><div className={`h-full rounded-full transition-all duration-700 ${className}`} style={{ width: `${pct}%` }} /></div>
+  </div>;
+}
+
+function RankingRows({ data }: { data: Record<string, number> }) {
+  const rows = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const max = Math.max(1, ...rows.map(([, value]) => value));
+  return <div className="space-y-3">
+    {rows.length === 0 && <p className="rounded-xl bg-rose-50/40 p-4 text-sm text-stone-500">Sin ventas registradas.</p>}
+    {rows.map(([label, value], index) => (
+      <div key={label} className="rounded-2xl bg-stone-50 p-3">
+        <div className="mb-2 flex justify-between gap-3 text-sm"><span className="font-bold">{index + 1}. {label}</span><b>{eur(value)}</b></div>
+        <div className="h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-[#da4d73] transition-all duration-700" style={{ width: `${Math.max(8, (value / max) * 100)}%` }} /></div>
+      </div>
+    ))}
+  </div>;
 }
 
 function DailyRevenuePanel({ salesByDay, saleItems }: { salesByDay: Record<string, PosSale[]>; saleItems: PosSaleItem[] }) {
@@ -1554,7 +1676,7 @@ function StaffView({ staff, editingStaff, setEditingStaff, saveStaff, removeStaf
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm"><h3 className="mb-5 font-serif text-2xl font-bold">{title}</h3>{children}</section>;
+  return <section className="rounded-[1.75rem] border border-white/80 bg-white/90 p-5 shadow-sm backdrop-blur-xl"><h3 className="mb-5 font-serif text-2xl font-bold text-stone-950">{title}</h3>{children}</section>;
 }
 
 
