@@ -621,10 +621,10 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff1f4_0,#fffbfb_36%,#f8fafc_100%)] text-stone-900 md:pl-72">
       <NoticeStack notices={notices} onDismiss={id => setNotices(prev => prev.filter(item => item.id !== id))} />
       <aside className="fixed left-0 top-0 hidden md:flex h-screen w-72 flex-col border-r border-rose-100/70 bg-white/85 p-5 shadow-[20px_0_60px_rgba(190,18,60,0.06)] backdrop-blur-2xl">
-        <div className="mb-6 rounded-3xl bg-gradient-to-br from-[#da4d73] to-stone-950 px-5 py-5 text-white shadow-xl shadow-rose-200/60">
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-white/60">Admin Portal</p>
-          <h1 className="mt-2 font-serif text-3xl font-bold">Maria</h1>
-          <p className="mt-2 text-xs leading-relaxed text-white/70">Reservas, caja, clientes y contenidos en un solo panel.</p>
+        <div className="mb-6 rounded-3xl border border-rose-100 bg-gradient-to-br from-white via-rose-50 to-pink-50 px-5 py-5 text-stone-900 shadow-xl shadow-rose-100/70">
+          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#da4d73]/70">Admin Portal</p>
+          <h1 className="mt-2 font-serif text-3xl font-bold text-stone-950">Maria</h1>
+          <p className="mt-2 text-xs leading-relaxed text-stone-500">Reservas, caja, clientes y contenidos en un solo panel.</p>
         </div>
         <nav className="flex flex-col gap-2 text-xs font-bold">
           <NavButton active={activeTab === 'dashboard'} icon={<CalendarDays className="w-4 h-4" />} label="Agenda" onClick={() => setActiveTab('dashboard')} />
@@ -1490,16 +1490,16 @@ function AnalyticsView({ sales, saleItems, appointments }: { sales: PosSale[]; s
   const confirmed = appointments.filter(a => a.status === 'Confirmed').length;
 
   return <div className="space-y-6">
-    <section className="rounded-[2rem] border border-white/80 bg-gradient-to-br from-stone-950 via-stone-900 to-[#8f2c4a] p-6 text-white shadow-2xl shadow-rose-950/10">
+    <section className="rounded-[2rem] border border-rose-100 bg-gradient-to-br from-white via-rose-50/80 to-pink-50 p-6 text-stone-900 shadow-xl shadow-rose-100/70">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.35em] text-rose-200">Analiticas</p>
-          <h3 className="mt-2 font-serif text-4xl font-bold">Rendimiento del salon</h3>
-          <p className="mt-2 text-sm text-white/60">Ingresos, metodos de pago, agenda y tickets con detalle operativo.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#da4d73]">Analiticas</p>
+          <h3 className="mt-2 font-serif text-4xl font-bold text-stone-950">Rendimiento del salon</h3>
+          <p className="mt-2 text-sm text-stone-500">Ingresos, metodos de pago, agenda y tickets con detalle operativo.</p>
         </div>
-        <div className="rounded-2xl bg-white/10 px-4 py-3 text-right backdrop-blur">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Ticket medio</p>
-          <p className="font-serif text-3xl font-bold">{eur(ticketAverage)}</p>
+        <div className="rounded-2xl border border-rose-100 bg-white/80 px-4 py-3 text-right shadow-sm backdrop-blur">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Ticket medio</p>
+          <p className="font-serif text-3xl font-bold text-[#da4d73]">{eur(ticketAverage)}</p>
         </div>
       </div>
     </section>
