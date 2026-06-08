@@ -21,8 +21,9 @@ import {
 } from 'lucide-react';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { loadStripe, SetupIntentResult, StripeElementsOptions } from '@stripe/stripe-js';
-import { invokeFunction } from '../lib/supabase';
-import { Appointment, Service } from '../types';
+import { Appointment, createViteBookingClient, Service } from '@booking-system/core';
+
+const { invokeFunction } = createViteBookingClient();
 
 interface BookingModalProps {
   isOpen: boolean;

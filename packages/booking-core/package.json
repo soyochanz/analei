@@ -1,0 +1,10 @@
+{
+  "name": "@booking-system/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.107.0"
+  }
+}

@@ -8,8 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_APPOINTMENTS } from './data';
 import { Appointment, Article, Product, Service } from './types';
 import ClientPortalView from './components/ClientPortalView';
-import DashboardView from './components/DashboardView';
-import BookingModal from './components/BookingModal';
+import { BookingModal, DashboardView } from '@booking-system/react';
 import BlogReaderModal from './components/BlogReaderModal';
 import { invokeFunction, supabase } from './lib/supabase';
 

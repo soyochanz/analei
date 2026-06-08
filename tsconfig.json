@@ -18,12 +18,19 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@booking-system/core": [
+        "./packages/booking-core/src/index.ts"
+      ],
+      "@booking-system/react": [
+        "./packages/booking-react/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
   "exclude": [
-    "supabase/functions"
+    "supabase/functions",
+    "booking-system/supabase/functions"
   ]
 }

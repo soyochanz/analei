@@ -9,6 +9,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@booking-system/core': path.resolve(__dirname, 'packages/booking-core/src/index.ts'),
+        '@booking-system/react': path.resolve(__dirname, 'packages/booking-react/src/index.ts'),
       },
     },
     server: {
