@@ -400,8 +400,7 @@ function StripeBookingFields(props: PaymentBookingFormProps) {
               fields: {
                 billingDetails: {
                   name: 'never',
-                  email: 'never',
-                  address: 'never'
+                  email: 'never'
                 }
               },
               terms: {
