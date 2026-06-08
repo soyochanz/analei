@@ -10,6 +10,7 @@ const avatarColors = [
 
 export const appointmentFromDb = (ap: DbAppointment, index = 0): Appointment => ({
   id: ap.id,
+  salonId: ap.salon_id,
   clientName: ap.client_name,
   clientEmail: ap.client_email,
   clientPhone: ap.client_phone,

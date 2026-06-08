@@ -14,6 +14,7 @@ import { invokeFunction, supabase } from './lib/supabase';
 
 type DbAppointment = {
   id: string;
+  salon_id?: string;
   client_name: string;
   client_email?: string;
   client_phone?: string;
@@ -49,6 +50,7 @@ const getInitials = (clientName: string) =>
 
 const appointmentFromDb = (ap: DbAppointment, index: number): Appointment => ({
   id: ap.id,
+  salonId: ap.salon_id,
   clientName: ap.client_name,
   clientEmail: ap.client_email,
   clientPhone: ap.client_phone,

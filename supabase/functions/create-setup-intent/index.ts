@@ -2,11 +2,11 @@ import Stripe from 'https://esm.sh/stripe@17.6.0?target=deno';
 import { createAdminClient } from '../_shared/admin.ts';
 import { handleOptions, jsonResponse } from '../_shared/http.ts';
 
-const getNoShowFeeCents = async (supabase: ReturnType<typeof createAdminClient>, priceCents: number) => {
+const getNoShowFeeCents = async (supabase: ReturnType<typeof createAdminClient>, priceCents: number, salonId: string) => {
   const { data } = await supabase
     .from('no_show_policy')
     .select('*')
-    .eq('id', true)
+    .eq('salon_id', salonId)
     .maybeSingle();
 
   if (!data?.enabled) return 0;
@@ -14,6 +14,13 @@ const getNoShowFeeCents = async (supabase: ReturnType<typeof createAdminClient>,
     return Math.round(priceCents * Number(data.percentage || 0) / 100);
   }
   return Number(data.fixed_cents ?? 4000);
+};
+
+const getSalonId = async (supabase: ReturnType<typeof createAdminClient>, requested?: string) => {
+  if (requested) return requested;
+  const { data, error } = await supabase.from('salons').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
+  if (error) throw error;
+  return data?.id || '';
 };
 
 Deno.serve(async (req) => {
@@ -33,18 +40,20 @@ Deno.serve(async (req) => {
     const supabase = createAdminClient();
     const body = await req.json();
     const serviceName = String(body.service || '');
+    const salonId = await getSalonId(supabase, String(body.salonId || body.salon_id || ''));
 
     const { data: service, error: serviceError } = await supabase
       .from('services')
       .select('id, name, price_cents')
       .eq('name', serviceName)
+      .eq('salon_id', salonId)
       .eq('is_active', true)
       .maybeSingle();
 
     if (serviceError) throw serviceError;
     if (!service) return jsonResponse({ error: 'Servicio no encontrado.' }, 404);
 
-    const noShowFeeCents = await getNoShowFeeCents(supabase, service.price_cents);
+    const noShowFeeCents = await getNoShowFeeCents(supabase, service.price_cents, salonId);
 
     const customer = await stripe.customers.create({
       email: body.clientEmail || undefined,
@@ -56,6 +65,7 @@ Deno.serve(async (req) => {
         serviceId: service.id,
         service: service.name,
         stylistId: String(body.stylistId || ''),
+        salonId,
         noShowFeeAmount: String(noShowFeeCents)
       }
     });
@@ -70,6 +80,7 @@ Deno.serve(async (req) => {
         serviceId: service.id,
         service: service.name,
         stylistId: String(body.stylistId || ''),
+        salonId,
         noShowFeeAmount: String(noShowFeeCents)
       }
     });

@@ -247,7 +247,7 @@ export default function ClientPortalView({
                 </div>
 
                 <div className="flex justify-between items-center pt-4 border-t border-rose-100">
-                  <span className="text-lg font-bold text-stone-900">€{service.price}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Precio en salon</span>
                   <button
                     onClick={onOpenBooking}
                     className="flex items-center gap-1 text-xs font-bold text-[#da4d73] hover:text-rose-600 group-hover:translate-x-1 transition-all cursor-pointer"

@@ -94,6 +94,7 @@ type Subscriber = { id: string; email: string; created_at: string; source?: stri
 type SavedClientProfile = { id?: string; name: string; email?: string; phone?: string; photo_url?: string; notes?: string; birthdate?: string; allergies?: string; preferences?: string; created_at?: string; updated_at?: string };
 type NewsletterCampaign = { id: string; subject: string; template: string; body_html: string; status: 'draft' | 'sent' | 'failed'; recipient_count: number; sent_at?: string; error_message?: string; created_at: string };
 type NewsletterDraft = { subject: string; template: string; body_html: string };
+type Salon = { id: string; name: string; slug: string; address?: string; phone?: string; email?: string };
 
 type AdminStaff = { id?: string; auth_user_id?: string; stylist_id?: string; name: string; email: string; password?: string; role: string; pin?: string; is_admin?: boolean; is_active?: boolean };
 type PosSale = { id: string; appointment_id?: string; client_name?: string; client_email?: string; payment_method: 'cash' | 'card'; total_cents: number; created_at: string };
@@ -238,6 +239,9 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const [cashCloseout, setCashCloseout] = useState<{ mode: 'consulta' | 'cierre'; method: 'cash' | 'card' | 'all'; sales: PosSale[]; total: number; from?: string; to?: string } | null>(null);
   const [staffStylists, setStaffStylists] = useState<StaffStylist[]>(stylists);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [salons, setSalons] = useState<Salon[]>([]);
+  const [selectedSalonId, setSelectedSalonId] = useState('');
+  const [newSalonName, setNewSalonName] = useState('');
 
   const notify = (message: string, type: Notice['type'] = 'success', title = type === 'error' ? 'Revisa esto' : 'Listo') => {
     const notice = { id: Date.now(), title, message, type };
@@ -257,10 +261,14 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       subscribers?: Subscriber[];
       clients?: SavedClientProfile[];
       campaigns?: NewsletterCampaign[];
+      salons?: Salon[];
+      selectedSalonId?: string;
       settings?: any;
       policy?: any;
-    }>('admin-panel', { action: 'load' })
+    }>('admin-panel', { action: 'load', salonId: selectedSalonId || undefined })
       .then(data => {
+        setSalons(data.salons || []);
+        if (!selectedSalonId && data.selectedSalonId) setSelectedSalonId(data.selectedSalonId);
         setProducts((data.products || []).filter(p => p.is_active !== false).map(p => ({
           id: p.id,
           name: p.name,
@@ -326,7 +334,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         }
       })
       .catch(error => console.warn('No se pudo cargar administracion:', error));
-  }, []);
+  }, [selectedSalonId]);
 
   useEffect(() => {
     if (stylists.length) setStaffStylists(stylists);
@@ -335,9 +343,10 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const currentStaff = staff.find(s => s.email === currentUserEmail);
   const professionals = staffStylists.length ? staffStylists : stylists;
   const currentStylist = currentStaff?.stylist_id ? professionals.find(s => s.id === currentStaff.stylist_id) : undefined;
+  const appointmentsForSalon = selectedSalonId ? appointments.filter(ap => !ap.salonId || ap.salonId === selectedSalonId) : appointments;
 
   const filteredAppointments = useMemo(() => {
-    const scoped = staffScope === 'mine' && currentStylist ? appointments.filter(ap => ap.stylistId === currentStylist.id) : appointments;
+    const scoped = staffScope === 'mine' && currentStylist ? appointmentsForSalon.filter(ap => ap.stylistId === currentStylist.id) : appointmentsForSalon;
     if (dateFilter === 'all') return scoped;
     const target =
       dateFilter === 'today' ? isoDate(now) :
@@ -348,22 +357,22 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       return scoped.filter(ap => ap.date >= rangeStart && ap.date <= rangeEnd);
     }
     return scoped.filter(ap => ap.date === target);
-  }, [appointments, dateFilter, specificDate, rangeStart, rangeEnd, staffScope, currentStylist]);
+  }, [appointmentsForSalon, dateFilter, specificDate, rangeStart, rangeEnd, staffScope, currentStylist]);
 
   const analytics = useMemo(() => {
     const todayIso = isoDate(now);
-    const todayAppointments = appointments.filter(ap => ap.date === todayIso);
-    const weeklyRevenue = appointments
+    const todayAppointments = appointmentsForSalon.filter(ap => ap.date === todayIso);
+    const weeklyRevenue = appointmentsForSalon
       .filter(ap => ap.date >= isoDate(addDays(now, -7)) && ap.status !== 'Cancelled')
       .reduce((sum, ap) => sum + ap.price, 0);
-    const uniqueClients = new Set(appointments.map(clientIdentityKey)).size;
-    const noShowRevenue = appointments
+    const uniqueClients = new Set(appointmentsForSalon.map(clientIdentityKey)).size;
+    const noShowRevenue = appointmentsForSalon
       .filter(ap => ap.paymentGuaranteeStatus === 'charged')
       .reduce((sum, ap) => sum + (ap.noShowFeeAmount || 0), 0);
     return { todayCount: todayAppointments.length, weeklyRevenue, uniqueClients, noShowRevenue };
-  }, [appointments]);
+  }, [appointmentsForSalon]);
 
-  const clientProfiles = useMemo(() => buildClientProfiles(appointments, clients), [appointments, clients]);
+  const clientProfiles = useMemo(() => buildClientProfiles(appointmentsForSalon, clients), [appointmentsForSalon, clients]);
   const adminAppointmentMatches = useMemo(
     () => findClientProfiles(clientProfiles, adminAppointment.clientName, adminAppointment.clientPhone, adminAppointment.clientEmail),
     [clientProfiles, adminAppointment.clientName, adminAppointment.clientPhone, adminAppointment.clientEmail]
@@ -379,20 +388,33 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   }, []);
 
   const saveProduct = async () => {
-    const { product } = await invokeFunction<{ product: any }>('admin-panel', { action: 'upsert_product', product: editingProduct });
+    const { product } = await invokeFunction<{ product: any }>('admin-panel', { action: 'upsert_product', product: editingProduct, salonId: selectedSalonId });
     const normalized = { ...editingProduct, id: product.id };
     setProducts(prev => [normalized, ...prev.filter(p => p.id !== product.id)]);
     setEditingProduct(emptyProduct);
   };
+
+  const createSalon = async () => {
+    if (!newSalonName.trim()) return notify('Pon el nombre del salon.', 'error');
+    const { salon } = await invokeFunction<{ salon: Salon }>('admin-panel', {
+      action: 'create_salon',
+      salon: { name: newSalonName.trim() }
+    });
+    setSalons(prev => [...prev, salon].sort((a, b) => a.name.localeCompare(b.name)));
+    setSelectedSalonId(salon.id);
+    setNewSalonName('');
+    notify('Salon creado.');
+  };
+
   const savePost = async () => {
-    const { post } = await invokeFunction<{ post: AdminPost }>('admin-panel', { action: 'upsert_post', post: editingPost });
+    const { post } = await invokeFunction<{ post: AdminPost }>('admin-panel', { action: 'upsert_post', post: editingPost, salonId: selectedSalonId });
     setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]);
     setEditingPost(emptyPost);
     notify('Post guardado.');
   };
   const removePost = async (id?: string) => {
     if (!id) return;
-    await invokeFunction('admin-panel', { action: 'delete_post', id });
+    await invokeFunction('admin-panel', { action: 'delete_post', id, salonId: selectedSalonId });
     setPosts(prev => prev.filter(p => p.id !== id));
   };
   const exportSubscribers = () => {
@@ -407,7 +429,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   const saveClient = async () => {
-    const payload = await invokeFunction<{ client: SavedClientProfile }>('admin-panel', { action: 'upsert_client', client: editingClient });
+    const payload = await invokeFunction<{ client: SavedClientProfile }>('admin-panel', { action: 'upsert_client', client: editingClient, salonId: selectedSalonId });
     setClients(prev => [payload.client, ...prev.filter(client => client.id !== payload.client.id)]);
     setEditingClient(emptyClient);
     notify('Ficha de cliente guardada.');
@@ -415,7 +437,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
 
   const removeClient = async (id?: string) => {
     if (!id) return;
-    await invokeFunction('admin-panel', { action: 'delete_client', id });
+    await invokeFunction('admin-panel', { action: 'delete_client', id, salonId: selectedSalonId });
     setClients(prev => prev.filter(client => client.id !== id));
     notify('Ficha de cliente eliminada.');
   };
@@ -425,6 +447,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     try {
       const payload = await invokeFunction<{ campaign: NewsletterCampaign }>('admin-panel', {
         action: 'send_newsletter',
+        salonId: selectedSalonId,
         subject: newsletterDraft.subject,
         template: newsletterDraft.template,
         body_html: newsletterDraft.body_html
@@ -439,7 +462,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   const saveService = async () => {
-    const { service } = await invokeFunction<{ service: any }>('admin-panel', { action: 'upsert_service', service: editingService });
+    const { service } = await invokeFunction<{ service: any }>('admin-panel', { action: 'upsert_service', service: editingService, salonId: selectedSalonId });
     const normalized = { ...editingService, id: service.id };
     setServices(prev => [normalized, ...prev.filter(s => s.id !== service.id)]);
     setEditingService(emptyService);
@@ -447,28 +470,28 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
 
   const removeProduct = async (id?: string) => {
     if (!id) return;
-    await invokeFunction('admin-panel', { action: 'delete_product', id });
+    await invokeFunction('admin-panel', { action: 'delete_product', id, salonId: selectedSalonId });
     setProducts(prev => prev.filter(p => p.id !== id));
   };
 
   const removeService = async (id?: string) => {
     if (!id) return;
-    await invokeFunction('admin-panel', { action: 'delete_service', id });
+    await invokeFunction('admin-panel', { action: 'delete_service', id, salonId: selectedSalonId });
     setServices(prev => prev.filter(s => s.id !== id));
   };
 
   const savePolicy = async () => {
-    await invokeFunction('admin-panel', { action: 'save_policy', policy });
+    await invokeFunction('admin-panel', { action: 'save_policy', policy, salonId: selectedSalonId });
     notify('Politica no-show guardada.');
   };
 
   const saveSettings = async () => {
-    await invokeFunction('admin-panel', { action: 'save_settings', settings });
+    await invokeFunction('admin-panel', { action: 'save_settings', settings, salonId: selectedSalonId });
     notify('Ajustes de salon guardados.');
   };
 
   const saveStaff = async () => {
-    const { staff: saved } = await invokeFunction<{ staff: any }>('admin-panel', { action: 'upsert_staff', staff: editingStaff });
+    const { staff: saved } = await invokeFunction<{ staff: any }>('admin-panel', { action: 'upsert_staff', staff: editingStaff, salonId: selectedSalonId });
     setStaff(prev => {
       const next = [{ ...editingStaff, id: saved.id, auth_user_id: saved.auth_user_id, stylist_id: saved.stylist_id, password: '' }, ...prev.filter(s => s.id !== saved.id)];
       setStaffStylists(staffToStylists(next));
@@ -493,10 +516,12 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     const selectedStylist = professionals.find(stylist => stylist.id === adminAppointment.stylistId);
     const { appointment } = await invokeFunction<{ appointment: any }>('admin-panel', {
       action: 'create_appointment',
+      salonId: selectedSalonId,
       appointment: adminAppointment
     });
     onAddAppointment({
       id: appointment.id,
+      salonId: appointment.salon_id || selectedSalonId,
       clientName: appointment.client_name,
       clientEmail: appointment.client_email || undefined,
       clientPhone: appointment.client_phone || undefined,
@@ -516,7 +541,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
 
   const removeStaff = async (id?: string) => {
     if (!id) return;
-    await invokeFunction('admin-panel', { action: 'delete_staff', id });
+    await invokeFunction('admin-panel', { action: 'delete_staff', id, salonId: selectedSalonId });
     setStaff(prev => {
       const next = prev.filter(s => s.id !== id);
       setStaffStylists(staffToStylists(next));
@@ -549,6 +574,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const updateAppointmentStatus = async (ap: Appointment, status: Appointment['status']) => {
     const { appointment } = await invokeFunction<{ appointment: any }>('admin-panel', {
       action: 'update_appointment_status',
+      salonId: selectedSalonId,
       appointmentId: ap.id,
       status
     });
@@ -566,12 +592,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   const posTotal = posCart.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
-  const todayAppointments = appointments.filter(ap => ap.date === isoDate(now) && (staffScope === 'all' || !currentStylist || ap.stylistId === currentStylist.id));
+  const todayAppointments = appointmentsForSalon.filter(ap => ap.date === isoDate(now) && (staffScope === 'all' || !currentStylist || ap.stylistId === currentStylist.id));
 
   const completePosSale = async (paymentMethod: 'cash' | 'card') => {
     if (!posCart.length) return notify('Anade productos o servicios al ticket.', 'error');
     const { sale } = await invokeFunction<{ sale: PosSale }>('admin-panel', {
       action: 'create_sale',
+      salonId: selectedSalonId,
       sale: {
         appointmentId: posClient?.appointmentId,
         clientName: posClient?.name,
@@ -605,7 +632,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   const closeRegister = async (method: 'cash' | 'card' | 'all') => {
-    const { closure, sales: closedSales } = await invokeFunction<{ closure: CashClosure; sales: PosSale[] }>('admin-panel', { action: 'close_register', method });
+    const { closure, sales: closedSales } = await invokeFunction<{ closure: CashClosure; sales: PosSale[] }>('admin-panel', { action: 'close_register', method, salonId: selectedSalonId });
     setClosures(prev => [closure, ...prev]);
     setCashCloseout({
       mode: 'cierre',
@@ -650,6 +677,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#da4d73]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <h2 className="font-serif text-3xl font-bold">Panel de control</h2>
+            <div className="mt-4 flex flex-wrap items-end gap-2">
+              <Select label="Salon activo" value={selectedSalonId} onChange={setSelectedSalonId}>
+                {salons.map(salon => <option key={salon.id} value={salon.id}>{salon.name}</option>)}
+              </Select>
+              <Field label="Nuevo salon" value={newSalonName} onChange={setNewSalonName} />
+              <button onClick={createSalon} className="rounded-xl bg-[#da4d73] px-4 py-2 text-xs font-bold uppercase text-white">Crear salon</button>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex">
             <MobileTab active={activeTab === 'dashboard'} label="Agenda" onClick={() => setActiveTab('dashboard')} />
@@ -777,7 +811,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
                     const date = isoDate(day);
                     const isCurrentMonth = day.getMonth() === now.getMonth();
                     const isToday = date === isoDate(now);
-                    const hasAppointment = appointments.some(ap => ap.date === date);
+                    const hasAppointment = appointmentsForSalon.some(ap => ap.date === date);
                     return (
                       <button key={date} onClick={() => { setSpecificDate(date); setDateFilter('specific'); }} className={`relative rounded-lg py-3 font-bold ${!isCurrentMonth ? 'text-stone-300' : isToday ? 'bg-[#da4d73] text-white' : 'hover:bg-rose-50'}`}>
                         {day.getDate()}
@@ -796,7 +830,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
             date={calendarDate}
             setDate={setCalendarDate}
             stylists={professionals}
-            appointments={appointments}
+            appointments={appointmentsForSalon}
             staffScope={staffScope}
             setStaffScope={setStaffScope}
             currentStylist={currentStylist}
@@ -804,7 +838,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         )}
 
         {activeTab === 'clients' && <ClientsView clients={clientProfiles} editingClient={editingClient} setEditingClient={setEditingClient} saveClient={saveClient} removeClient={removeClient} clientSearch={clientSearch} setClientSearch={setClientSearch} />}
-        {activeTab === 'analytics' && <AnalyticsView sales={sales} saleItems={saleItems} appointments={appointments} />}
+        {activeTab === 'analytics' && <AnalyticsView sales={sales} saleItems={saleItems} appointments={appointmentsForSalon} />}
         {activeTab === 'catalog' && (
           <CatalogView
             products={products}
@@ -822,7 +856,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
         {activeTab === 'content' && <ContentView posts={posts} editingPost={editingPost} setEditingPost={setEditingPost} savePost={savePost} removePost={removePost} subscribers={subscribers} exportSubscribers={exportSubscribers} newsletterDraft={newsletterDraft} setNewsletterDraft={setNewsletterDraft} sendNewsletter={sendNewsletter} isSendingNewsletter={isSendingNewsletter} campaigns={campaigns} />}
         {activeTab === 'settings' && <SettingsView policy={policy} settings={settings} setPolicy={setPolicy} setSettings={setSettings} savePolicy={savePolicy} saveSettings={saveSettings} />}
         {activeTab === 'staff' && <StaffView staff={staff} editingStaff={editingStaff} setEditingStaff={setEditingStaff} saveStaff={saveStaff} removeStaff={removeStaff} />}
-        {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} appointmentsToday={todayAppointments} appointments={appointments} posClient={posClient} setPosClient={setPosClient} completeSale={completePosSale} closeRegister={closeRegister} viewRegister={viewRegister} sales={sales} saleItems={saleItems} manualItemName={manualItemName} manualItemPrice={manualItemPrice} setManualItemName={setManualItemName} setManualItemPrice={setManualItemPrice} closeout={cashCloseout} setCloseout={setCashCloseout} closures={closures} updateAppointmentStatus={updateAppointmentStatus} chargeNoShow={posNoShow} />}
+        {activeTab === 'pos' && <PosView services={services} products={products} cart={posCart} setCart={setPosCart} total={posTotal} appointmentsToday={todayAppointments} appointments={appointmentsForSalon} posClient={posClient} setPosClient={setPosClient} completeSale={completePosSale} closeRegister={closeRegister} viewRegister={viewRegister} sales={sales} saleItems={saleItems} manualItemName={manualItemName} manualItemPrice={manualItemPrice} setManualItemName={setManualItemName} setManualItemPrice={setManualItemPrice} closeout={cashCloseout} setCloseout={setCashCloseout} closures={closures} updateAppointmentStatus={updateAppointmentStatus} chargeNoShow={posNoShow} />}
       </main>
     </div>
   );

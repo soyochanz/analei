@@ -3,6 +3,13 @@ import { createAdminClient } from '../_shared/admin.ts';
 import { handleOptions, jsonResponse } from '../_shared/http.ts';
 import { sendAppointmentWhatsApp } from '../_shared/whatsapp.ts';
 
+const getSalonId = async (supabase: ReturnType<typeof createAdminClient>, requested?: string) => {
+  if (requested) return requested;
+  const { data, error } = await supabase.from('salons').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
+  if (error) throw error;
+  return data?.id || '';
+};
+
 Deno.serve(async (req) => {
   const optionsResponse = handleOptions(req);
   if (optionsResponse) return optionsResponse;
@@ -41,10 +48,12 @@ Deno.serve(async (req) => {
 
     const serviceId = String(body.serviceId || setupIntent.metadata.serviceId || '');
     const stylistId = String(body.stylistId || setupIntent.metadata.stylistId || '');
+    const salonId = await getSalonId(supabase, String(body.salonId || setupIntent.metadata.salonId || ''));
     const { data: service, error: serviceError } = await supabase
       .from('services')
       .select('id, name, price_cents')
       .eq('id', serviceId)
+      .eq('salon_id', salonId)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -54,7 +63,7 @@ Deno.serve(async (req) => {
     const { data: policy } = await supabase
       .from('no_show_policy')
       .select('*')
-      .eq('id', true)
+      .eq('salon_id', salonId)
       .maybeSingle();
     const noShowFeeCents = !policy?.enabled
       ? 0
@@ -64,6 +73,7 @@ Deno.serve(async (req) => {
 
     const insertPayload = {
       client_name: String(body.clientName || '').trim(),
+      salon_id: salonId,
       client_email: String(body.clientEmail || '').trim(),
       client_phone: String(body.clientPhone || '').trim() || null,
       service_id: service.id,

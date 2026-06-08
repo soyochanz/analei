@@ -2,6 +2,7 @@ import { createAdminClient } from './admin.ts';
 
 type AppointmentMessage = {
   id: string;
+  salon_id?: string | null;
   client_name: string;
   client_phone?: string | null;
   service_name: string;
@@ -34,6 +35,7 @@ export const sendAppointmentWhatsApp = async (
   if (!phone) {
     await supabase.from('whatsapp_notifications').upsert({
       appointment_id: appointment.id,
+      salon_id: appointment.salon_id || null,
       notification_type: type,
       phone: 'missing',
       status: 'skipped',
@@ -47,6 +49,7 @@ export const sendAppointmentWhatsApp = async (
   if (!accessToken || !phoneNumberId) {
     await supabase.from('whatsapp_notifications').upsert({
       appointment_id: appointment.id,
+      salon_id: appointment.salon_id || null,
       notification_type: type,
       phone,
       status: 'failed',
@@ -88,6 +91,7 @@ export const sendAppointmentWhatsApp = async (
     const errorMessage = payload?.error?.message || JSON.stringify(payload);
     await supabase.from('whatsapp_notifications').upsert({
       appointment_id: appointment.id,
+      salon_id: appointment.salon_id || null,
       notification_type: type,
       phone,
       status: 'failed',
@@ -99,6 +103,7 @@ export const sendAppointmentWhatsApp = async (
   const messageId = payload?.messages?.[0]?.id || null;
   await supabase.from('whatsapp_notifications').upsert({
     appointment_id: appointment.id,
+    salon_id: appointment.salon_id || null,
     notification_type: type,
     phone,
     status: 'sent',

@@ -1,5 +1,6 @@
 export interface Appointment {
   id: string;
+  salonId?: string;
   clientName: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -58,6 +59,7 @@ export interface Article {
 
 export type DbAppointment = {
   id: string;
+  salon_id?: string;
   client_name: string;
   client_email?: string;
   client_phone?: string;
