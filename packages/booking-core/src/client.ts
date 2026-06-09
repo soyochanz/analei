@@ -34,6 +34,10 @@ export const createBookingClient = ({
       if (context instanceof Response) {
         const payload = await context.json().catch(() => null);
         if (payload?.error) throw new Error(payload.error);
+        if (payload?.message) throw new Error(`${name}: ${payload.message}`);
+      }
+      if (error.message?.includes('Failed to send a request')) {
+        throw new Error(`${name}: no se pudo cargar la Edge Function. Revisa que este desplegada y sin errores de carga en Supabase.`);
       }
       throw error;
     }
