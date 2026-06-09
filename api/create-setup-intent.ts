@@ -18,7 +18,7 @@ export default async function handler(req: any, res: any) {
 
     const customer = await stripe.customers.create({
       metadata: {
-        source: 'peluqueria-maria-booking',
+        source: 'analei-booking',
         appointmentDate: String(appointmentDate || ''),
         appointmentTime: String(appointmentTime || ''),
         service: String(service || ''),

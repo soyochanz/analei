@@ -8,7 +8,7 @@ const slugify = (value: string) =>
   value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `salon-${Date.now()}`;
 const normalizeColor = (value: unknown) => {
   const color = asText(value);
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#da4d73';
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#9f6f79';
 };
 
 Deno.serve(async (req) => {
@@ -23,6 +23,9 @@ Deno.serve(async (req) => {
     const getSalonId = async () => {
       const requested = asText(body.salonId || body.salon_id);
       if (requested) return requested;
+      const { data: analei, error: analeiError } = await supabase.from('salons').select('id').eq('is_active', true).ilike('name', '%analei%').order('created_at').limit(1).maybeSingle();
+      if (analeiError) throw analeiError;
+      if (analei?.id) return analei.id;
       const { data, error } = await supabase.from('salons').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
       if (error) throw error;
       return data?.id || null;
@@ -336,7 +339,7 @@ Deno.serve(async (req) => {
       if (!recipients.length) return jsonResponse({ error: 'No hay emails en el newsletter.' }, 400);
 
       const resendKey = Deno.env.get('RESEND_API_KEY');
-      const fromEmail = Deno.env.get('NEWSLETTER_FROM_EMAIL') || 'Peluqueria Maria <newsletter@peluqueriamaria.com>';
+      const fromEmail = Deno.env.get('NEWSLETTER_FROM_EMAIL') || 'Analei <newsletter@analei.es>';
       let status = 'sent';
       let errorMessage = '';
 

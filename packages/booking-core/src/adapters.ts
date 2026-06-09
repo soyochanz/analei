@@ -1,9 +1,9 @@
 import { Appointment, Article, DbAppointment, Product, Service } from './types';
 
 const avatarColors = [
-  'bg-rose-50 text-[#da4d73] border border-rose-100',
+  'bg-rose-50 text-[#2f8f83] border border-rose-100',
   'bg-amber-50 text-amber-700 border border-amber-100',
-  'bg-purple-50 text-[#a855f7] border border-purple-150',
+  'bg-purple-50 text-[#c48f3a] border border-purple-150',
   'bg-blue-50 text-blue-700 border border-blue-100',
   'bg-teal-50 text-teal-700 border border-teal-100'
 ];

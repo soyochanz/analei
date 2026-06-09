@@ -36,7 +36,7 @@ export default function BlogReaderModal({ article, onClose }: BlogReaderModalPro
             initial={{ scale: 0.95, y: 30, opacity: 0 }}
             animate={{ scale: 1, y: 0, opacity: 1 }}
             exit={{ scale: 0.95, y: 30, opacity: 0 }}
-            className="relative w-full max-w-2xl bg-[#fffbfb] backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-rose-100 z-10 max-h-[90vh] flex flex-col text-stone-800"
+            className="relative w-full max-w-2xl bg-[#fbfdf8] backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-rose-100 z-10 max-h-[90vh] flex flex-col text-stone-800"
           >
             {/* Image Banner */}
             <div className="relative h-60 w-full sm:h-72 overflow-hidden bg-rose-50">
@@ -49,7 +49,7 @@ export default function BlogReaderModal({ article, onClose }: BlogReaderModalPro
               <div className="absolute inset-0 bg-gradient-to-t from-stone-950/70 via-stone-950/20 to-transparent" />
               
               {/* Category chip */}
-              <span className="absolute top-4 left-4 bg-[#da4d73] text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+              <span className="absolute top-4 left-4 bg-[#2f8f83] text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
                 {article.category}
               </span>
 
@@ -74,9 +74,9 @@ export default function BlogReaderModal({ article, onClose }: BlogReaderModalPro
             </div>
 
             {/* Scrollable Content */}
-            <div className="p-6 sm:p-8 overflow-y-auto flex-1 bg-[#fffbfb] text-stone-750">
+            <div className="p-6 sm:p-8 overflow-y-auto flex-1 bg-[#fbfdf8] text-stone-750">
               {/* Summary italic panel */}
-              <p className="font-sans italic text-stone-600 border-l-4 border-[#da4d73] pl-4 py-1 mb-6 text-sm">
+              <p className="font-sans italic text-stone-600 border-l-4 border-[#2f8f83] pl-4 py-1 mb-6 text-sm">
                 "{article.summary}"
               </p>
 
@@ -96,11 +96,11 @@ export default function BlogReaderModal({ article, onClose }: BlogReaderModalPro
                     onClick={() => setIsLiked(!isLiked)}
                     className={`flex items-center gap-2 text-xs font-bold transition-colors px-3 py-1.5 rounded-full cursor-pointer border ${
                       isLiked 
-                        ? 'bg-rose-100 text-[#da4d73] border-rose-200' 
+                        ? 'bg-rose-100 text-[#2f8f83] border-rose-200' 
                         : 'bg-white border border-rose-150 hover:bg-rose-50 text-stone-600'
                     }`}
                   >
-                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#da4d73] text-[#da4d73]' : ''}`} />
+                    <Heart className={`w-4 h-4 ${isLiked ? 'fill-[#2f8f83] text-[#2f8f83]' : ''}`} />
                     {isLiked ? 'Me gusta' : 'Dar Me Gusta'}
                   </button>
 
@@ -114,8 +114,8 @@ export default function BlogReaderModal({ article, onClose }: BlogReaderModalPro
                 </div>
 
                 <div className="hidden sm:flex text-xs text-stone-500 items-center gap-1.5 font-semibold">
-                  <BookOpen className="w-4 h-4 text-[#da4d73]" />
-                  <span>Espacio de Lectura María</span>
+                  <BookOpen className="w-4 h-4 text-[#2f8f83]" />
+                  <span>Espacio de Lectura Analei</span>
                 </div>
               </div>
             </div>

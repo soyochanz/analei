@@ -5,28 +5,28 @@
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   
-  /* Luxurious Bright Rose & Peach Cream highlight mappings *//* matching the premium beauty tips palette */
-  --color-primary: #da4d73; /* elegant premium warm rose-pink */
-  --color-primary-container: #fff1f3;
-  --color-primary-fixed: #ffe4e6;
-  --color-primary-fixed-dim: #da4d73;
+  /* Analei uses a calm botanical palette with sage, teal and warm gold accents. */
+  --color-primary: #2f8f83;
+  --color-primary-container: #e7f5ef;
+  --color-primary-fixed: #cfe9df;
+  --color-primary-fixed-dim: #2f8f83;
   
-  --color-secondary: #ec4899; /* vibrant beauty pink */
-  --color-secondary-container: #fdf2f8;
-  --color-secondary-fixed: #fbcfe8;
-  --color-secondary-fixed-dim: #ec4899;
+  --color-secondary: #6fb3a8;
+  --color-secondary-container: #eef8f4;
+  --color-secondary-fixed: #bfe0d6;
+  --color-secondary-fixed-dim: #6fb3a8;
   
-  --color-tertiary: #a855f7; /* refined purple/lavender accent */
-  --color-tertiary-container: #faf5ff;
-  --color-tertiary-fixed: #e9d5ff;
-  --color-tertiary-fixed-dim: #a855f7;
+  --color-tertiary: #c48f3a;
+  --color-tertiary-container: #fff8eb;
+  --color-tertiary-fixed: #f2d7a2;
+  --color-tertiary-fixed-dim: #c48f3a;
   
-  --color-background: #fff8f8; /* Soft glowing skin-peach cream background */
-  --color-on-background: #201315; /* Elegant Espresso-dark gray text for readable contrast */
+  --color-background: #f7fbf6;
+  --color-on-background: #201315;
   
   --color-surface-bright: rgba(255, 255, 255, 0.95); 
   --color-surface-dim: rgba(255, 255, 255, 0.4);
-  --color-surface-container: rgba(255, 255, 255, 0.85); /* Luxurious semi-translucent light glassmorphism */
+  --color-surface-container: rgba(255, 255, 255, 0.85);
   --color-surface-container-low: rgba(255, 255, 255, 0.6);
   --color-surface-container-lowest: rgba(255, 248, 248, 0.9);
 }
@@ -68,8 +68,8 @@ html[data-theme="mono"] {
     background-color: var(--color-background);
     color: var(--color-on-background);
     min-height: 100vh;
-    background-image: radial-gradient(at top left, #ffeef1 0px, transparent 40%),
-                      radial-gradient(at bottom right, #fff4f0 0px, transparent 40%);
+    background-image: radial-gradient(at top left, #e9f6ef 0px, transparent 40%),
+                      radial-gradient(at bottom right, #fff8e8 0px, transparent 40%);
     background-attachment: fixed;
   }
   
@@ -87,11 +87,11 @@ html[data-theme="mono"] {
     background: rgba(0, 0, 0, 0.02);
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(218, 77, 115, 0.2);
+    background: rgba(47, 143, 131, 0.2);
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(218, 77, 115, 0.4);
+    background: rgba(47, 143, 131, 0.4);
   }
 
   html[data-theme="mono"] body {
@@ -137,11 +137,11 @@ html[data-theme="mono"] .theme-shell [class*="emerald"],
 html[data-theme="mono"] .theme-shell [class*="cyan"],
 html[data-theme="mono"] .theme-shell [class*="indigo"],
 html[data-theme="mono"] .theme-shell [class*="orange"],
-html[data-theme="mono"] .theme-shell [class*="#da4d73"],
-html[data-theme="mono"] .theme-shell [class*="#ec4899"],
-html[data-theme="mono"] .theme-shell [class*="#a855f7"],
+html[data-theme="mono"] .theme-shell [class*="#2f8f83"],
+html[data-theme="mono"] .theme-shell [class*="#6fb3a8"],
+html[data-theme="mono"] .theme-shell [class*="#c48f3a"],
 html[data-theme="mono"] .theme-shell [class*="#7c3aed"],
-html[data-theme="mono"] .theme-shell [class*="#bf3b5b"] {
+html[data-theme="mono"] .theme-shell [class*="#1f6f67"] {
   border-color: #d4d4d4 !important;
   box-shadow: none;
   color: #262626 !important;
@@ -149,9 +149,9 @@ html[data-theme="mono"] .theme-shell [class*="#bf3b5b"] {
 
 html[data-theme="mono"] .theme-shell [class*="rose"],
 html[data-theme="mono"] .theme-shell [class*="pink"],
-html[data-theme="mono"] .theme-shell [class*="#da4d73"],
-html[data-theme="mono"] .theme-shell [class*="#ec4899"],
-html[data-theme="mono"] .theme-shell [class*="#bf3b5b"] {
+html[data-theme="mono"] .theme-shell [class*="#2f8f83"],
+html[data-theme="mono"] .theme-shell [class*="#6fb3a8"],
+html[data-theme="mono"] .theme-shell [class*="#1f6f67"] {
   border-color: var(--mono-rose-200) !important;
   color: var(--mono-rose-ink) !important;
 }
@@ -178,12 +178,12 @@ html[data-theme="mono"] .theme-shell [class*="bg-pink"] {
   background-color: var(--mono-rose-50) !important;
 }
 
-html[data-theme="mono"] .theme-shell [class*="bg-[#da4d73"],
-html[data-theme="mono"] .theme-shell [class*="bg-[#ec4899"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#2f8f83"],
+html[data-theme="mono"] .theme-shell [class*="bg-[#6fb3a8"],
 html[data-theme="mono"] .theme-shell [class*="bg-[#7c3aed"],
 html[data-theme="mono"] .theme-shell [class*="from-purple"],
 html[data-theme="mono"] .theme-shell [class*="to-indigo"],
-html[data-theme="mono"] .theme-shell [class*="to-[#ec4899"] {
+html[data-theme="mono"] .theme-shell [class*="to-[#6fb3a8"] {
   background-image: none !important;
   background-color: #171717 !important;
   color: #ffffff !important;
@@ -222,9 +222,9 @@ html[data-theme="mono"] .theme-shell [class*="text-[#"] {
 
 html[data-theme="mono"] .theme-shell [class*="text-rose"],
 html[data-theme="mono"] .theme-shell [class*="text-pink"],
-html[data-theme="mono"] .theme-shell [class*="text-[#da4d73"],
-html[data-theme="mono"] .theme-shell [class*="text-[#ec4899"],
-html[data-theme="mono"] .theme-shell [class*="text-[#bf3b5b"] {
+html[data-theme="mono"] .theme-shell [class*="text-[#2f8f83"],
+html[data-theme="mono"] .theme-shell [class*="text-[#6fb3a8"],
+html[data-theme="mono"] .theme-shell [class*="text-[#1f6f67"] {
   color: var(--mono-rose-ink) !important;
 }
 
@@ -334,8 +334,8 @@ html[data-theme="mono"] #theme-switch-header-btn:hover {
   background-color: var(--mono-rose-100) !important;
 }
 
-html[data-theme="mono"] .theme-shell button[class*="bg-[#da4d73"],
-html[data-theme="mono"] .theme-shell a[class*="bg-[#da4d73"],
+html[data-theme="mono"] .theme-shell button[class*="bg-[#2f8f83"],
+html[data-theme="mono"] .theme-shell a[class*="bg-[#2f8f83"],
 html[data-theme="mono"] .theme-shell button[class*="bg-stone-900"] {
   background-color: #111111 !important;
   border-color: #111111 !important;
@@ -394,8 +394,8 @@ html[data-theme="mono"] #footer p[class*="font-mono"] {
   }
 
   .booking-input:focus {
-    border-color: #da4d73;
-    box-shadow: 0 0 0 2px rgba(218, 77, 115, 0.15), 0 14px 30px rgba(190, 18, 60, 0.08);
+    border-color: #2f8f83;
+    box-shadow: 0 0 0 2px rgba(47, 143, 131, 0.15), 0 14px 30px rgba(190, 18, 60, 0.08);
     outline: none;
   }
 

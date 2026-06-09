@@ -16,7 +16,7 @@ before update on public.salons
 for each row execute function public.set_updated_at();
 
 insert into public.salons (name, slug, email)
-values ('Peluqueria Maria', 'peluqueria-maria', 'soporte@peluqueriamaria.com')
+values ('Analei', 'analei', 'soporte@analei.es')
 on conflict (slug) do nothing;
 
 alter table public.products add column if not exists salon_id uuid references public.salons(id) on delete cascade;
@@ -44,7 +44,7 @@ do $$
 declare
   default_salon uuid;
 begin
-  select id into default_salon from public.salons where slug = 'peluqueria-maria' limit 1;
+  select id into default_salon from public.salons where slug = 'analei' limit 1;
 
   update public.products set salon_id = default_salon where salon_id is null;
   update public.services set salon_id = default_salon where salon_id is null;

@@ -69,7 +69,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
             <div>
               {/* Header inside sidebar */}
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#da4d73] to-rose-450 text-white flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#2f8f83] to-rose-450 text-white flex items-center justify-center shadow-md">
                   <Globe className="w-4 h-4 animate-spin-slow" />
                 </div>
                 <div>
@@ -84,8 +84,8 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                   onClick={() => setActiveTab('why-web')}
                   className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-2.5 cursor-pointer ${
                     activeTab === 'why-web'
-                      ? 'bg-[#da4d73] text-white shadow-md shadow-rose-500/10'
-                      : 'text-stone-600 hover:bg-rose-50/50 hover:text-[#da4d73]'
+                      ? 'bg-[#2f8f83] text-white shadow-md shadow-rose-500/10'
+                      : 'text-stone-600 hover:bg-rose-50/50 hover:text-[#2f8f83]'
                   }`}
                 >
                   <TrendingUp className="w-4 h-4 shrink-0" />
@@ -96,8 +96,8 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                   onClick={() => setActiveTab('pricing')}
                   className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-2.5 cursor-pointer ${
                     activeTab === 'pricing'
-                      ? 'bg-[#da4d73] text-white shadow-md shadow-rose-500/10'
-                      : 'text-stone-600 hover:bg-rose-50/50 hover:text-[#da4d73]'
+                      ? 'bg-[#2f8f83] text-white shadow-md shadow-rose-500/10'
+                      : 'text-stone-600 hover:bg-rose-50/50 hover:text-[#2f8f83]'
                   }`}
                 >
                   <Coins className="w-4 h-4 shrink-0" />
@@ -108,8 +108,8 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                   onClick={() => setActiveTab('ownership')}
                   className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-2.5 cursor-pointer ${
                     activeTab === 'ownership'
-                      ? 'bg-[#da4d73] text-white shadow-md shadow-rose-500/10'
-                      : 'text-stone-600 hover:bg-rose-50/50 hover:text-[#da4d73]'
+                      ? 'bg-[#2f8f83] text-white shadow-md shadow-rose-500/10'
+                      : 'text-stone-600 hover:bg-rose-50/50 hover:text-[#2f8f83]'
                   }`}
                 >
                   <KeyRound className="w-4 h-4 shrink-0" />
@@ -138,7 +138,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
             {/* Header / Dismiss Button */}
             <div className="flex justify-between items-start mb-6">
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-[#da4d73] bg-rose-50 px-3 py-1 rounded-full border border-rose-150">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-[#2f8f83] bg-rose-50 px-3 py-1 rounded-full border border-rose-150">
                   {activeTab === 'why-web' && 'Estrategia de Adquisición de Clientes'}
                   {activeTab === 'pricing' && 'Flexibilidad Horaria y Finanzas'}
                   {activeTab === 'ownership' && 'Garantías de Transparencia Tecnológica'}
@@ -175,7 +175,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                     {/* Channel Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="p-4 bg-rose-50/30 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-[#da4d73] mb-3">
+                        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-[#2f8f83] mb-3">
                           <Globe className="w-4 h-4" />
                         </div>
                         <h4 className="font-sans text-xs font-bold text-stone-900 mb-1">Motores de Búsqueda</h4>
@@ -210,14 +210,14 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
                         <div>
                           <h4 className="font-sans text-xs font-bold text-stone-900 flex items-center gap-1.5 uppercase tracking-wider">
-                            <TrendingUp className="w-4 h-4 text-[#da4d73]" />
+                            <TrendingUp className="w-4 h-4 text-[#2f8f83]" />
                             Simulación de Citas Mensuales (Ibiza)
                           </h4>
                           <p className="text-[10px] text-stone-400">Canalizadores Online vs. Tradicional Solo Boca a Boca</p>
                         </div>
                         <div className="flex gap-4 text-[10px] font-semibold">
                           <span className="flex items-center gap-1">
-                            <span className="inline-block w-2.5 h-2.5 bg-[#da4d73] rounded-sm"></span>
+                            <span className="inline-block w-2.5 h-2.5 bg-[#2f8f83] rounded-sm"></span>
                             Con Web Propia
                           </span>
                           <span className="flex items-center gap-1">
@@ -256,7 +256,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                                   <p className="font-bold text-rose-300">{data.month}</p>
                                   <p className="text-gray-300">Con Web: <span className="font-bold text-white">{data.withWeb} citas</span></p>
                                   <p className="text-gray-300">Tradicional: <span className="font-bold text-white">{data.withoutWeb} citas</span></p>
-                                  <p className="text-[9px] mt-1 text-[#da4d73] italic">{data.label}</p>
+                                  <p className="text-[9px] mt-1 text-[#2f8f83] italic">{data.label}</p>
                                 </motion.div>
                               )}
 
@@ -267,9 +267,9 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                                   initial={{ height: 0 }}
                                   animate={{ height: `${heightWithWeb}%` }}
                                   transition={{ type: 'spring', damping: 15, delay: idx * 0.05 }}
-                                  className="w-4 sm:w-7 bg-gradient-to-t from-[#da4d73] to-rose-450 rounded-t-md relative shadow-sm group-hover:brightness-110 transition-all"
+                                  className="w-4 sm:w-7 bg-gradient-to-t from-[#2f8f83] to-rose-450 rounded-t-md relative shadow-sm group-hover:brightness-110 transition-all"
                                 >
-                                  <span className="hidden sm:block absolute -top-4 left-1/2 transform -translate-x-1/2 text-[9px] font-bold text-[#da4d73]">
+                                  <span className="hidden sm:block absolute -top-4 left-1/2 transform -translate-x-1/2 text-[9px] font-bold text-[#2f8f83]">
                                     {data.withWeb}
                                   </span>
                                 </motion.div>
@@ -318,7 +318,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
 
                     <div className="bg-gradient-to-br from-rose-55/65 to-neutral-50/50 p-6 rounded-2xl border border-rose-100 space-y-4">
                       <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-[#da4d73] shrink-0 mt-1">
+                        <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-[#2f8f83] shrink-0 mt-1">
                           <CheckCircle2 className="w-5 h-5" />
                         </div>
                         <div>
@@ -406,7 +406,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
                     </div>
 
                     <div className="bg-rose-50/40 rounded-2xl p-5 border border-rose-100 flex flex-col sm:flex-row gap-4 items-center">
-                      <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-[#da4d73] shrink-0">
+                      <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-[#2f8f83] shrink-0">
                         <Award className="w-6 h-6" />
                       </div>
                       <div className="text-center sm:text-left font-sans">
@@ -434,7 +434,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
             {/* CTA Footer inside Modal */}
             <div className="pt-6 border-t border-rose-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-rose-50/20 px-4 py-3 rounded-2xl border border-rose-100/50">
               <div className="flex items-center gap-2">
-                <ChevronRight className="w-4 h-4 text-[#da4d73] shrink-0" />
+                <ChevronRight className="w-4 h-4 text-[#2f8f83] shrink-0" />
                 <span className="text-xs font-bold text-stone-700 font-sans">
                   {activeTab === 'why-web' && '¡Multiplica tu visibilidad en la isla de Ibiza hoy!'}
                   {activeTab === 'pricing' && 'Cuéntanos tu presupuesto y crearemos el acuerdo perfecto.'}
@@ -443,7 +443,7 @@ export default function AgencyInfoModal({ isOpen, onClose }: AgencyInfoModalProp
               </div>
               <button
                 onClick={onClose}
-                className="w-full sm:w-auto bg-[#da4d73] text-white hover:bg-[#ec4899] px-6 py-2.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all hover:shadow-lg hover:shadow-rose-500/20 cursor-pointer text-center"
+                className="w-full sm:w-auto bg-[#2f8f83] text-white hover:bg-[#6fb3a8] px-6 py-2.5 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all hover:shadow-lg hover:shadow-rose-500/20 cursor-pointer text-center"
               >
                 Entendido, ¡gracias!
               </button>

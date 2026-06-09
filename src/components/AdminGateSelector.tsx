@@ -78,7 +78,7 @@ export default function AdminGateSelector({
               ¿Cómo deseas gestionar la peluquería?
             </h3>
             <p className="font-sans text-xs text-stone-500 mt-2">
-              Compara las dos arquitecturas de agenda y reservas que hemos preparado para el negocio de María.
+              Compara las dos arquitecturas de agenda y reservas que hemos preparado para el negocio de Analei.
             </p>
           </div>
 
@@ -89,7 +89,7 @@ export default function AdminGateSelector({
             <div className="border border-rose-100 bg-white/50 hover:bg-white rounded-2.5xl p-6 transition-all duration-300 flex flex-col justify-between hover:shadow-xl hover:shadow-rose-100/30 group">
               <div>
                 <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-[#da4d73] border border-rose-100">
+                  <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center text-[#2f8f83] border border-rose-100">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <span className="bg-emerald-50 text-emerald-700 text-[9px] font-extrabold px-2.5 py-1 rounded-full border border-emerald-100 uppercase tracking-widest">
@@ -97,10 +97,10 @@ export default function AdminGateSelector({
                   </span>
                 </div>
 
-                <h4 className="font-serif text-xl font-bold text-stone-900 mb-1 leading-snug group-hover:text-[#da4d73] transition-colors">
-                  Menú Propio María
+                <h4 className="font-serif text-xl font-bold text-stone-900 mb-1 leading-snug group-hover:text-[#2f8f83] transition-colors">
+                  Menú Propio Analei
                 </h4>
-                <p className="text-[11px] text-[#da4d73] font-bold uppercase tracking-wide mb-3">
+                <p className="text-[11px] text-[#2f8f83] font-bold uppercase tracking-wide mb-3">
                   Tu agenda local exclusiva
                 </p>
 
@@ -130,7 +130,7 @@ export default function AdminGateSelector({
                   onSelectInternal();
                   onClose();
                 }}
-                className="w-full py-3.5 bg-stone-900 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#da4d73] hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-stone-900 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-[#2f8f83] hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 Entrar al Menú Propio
                 <ArrowRight className="w-4 h-4" />
@@ -172,7 +172,7 @@ export default function AdminGateSelector({
                   </li>
                   <li className="flex items-start gap-2 text-xs text-stone-600">
                     <Check className="w-4 h-4 text-[#7c3aed] shrink-0 mt-0.5" />
-                    <span><b>No-Shows Control:</b> Pide fianza al reservar para proteger el tiempo de María.</span>
+                    <span><b>No-Shows Control:</b> Pide fianza al reservar para proteger el tiempo de Analei.</span>
                   </li>
                   <li className="flex items-start gap-2 text-xs text-stone-600">
                     <Check className="w-4 h-4 text-[#7c3aed] shrink-0 mt-0.5" />

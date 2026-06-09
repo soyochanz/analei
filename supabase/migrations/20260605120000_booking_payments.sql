@@ -87,7 +87,7 @@ using (is_active = true);
 
 insert into public.stylists (name, role, bio)
 values
-  ('Maria', 'Directora tecnica', 'Especialista en color, corte y tratamientos capilares.'),
+  ('Analei', 'Directora tecnica', 'Especialista en color, corte y tratamientos capilares.'),
   ('Wendy', 'Estilista senior', 'Especialista en balayage, manicura y rituales beauty.')
 on conflict do nothing;
 

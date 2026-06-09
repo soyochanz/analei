@@ -33,8 +33,8 @@ type DbAppointment = {
 };
 
 const avatarColorCombos = [
-  'bg-rose-50 text-[#da4d73] border border-rose-100',
-  'bg-purple-50 text-[#a855f7] border border-purple-150',
+  'bg-rose-50 text-[#2f8f83] border border-rose-100',
+  'bg-purple-50 text-[#c48f3a] border border-purple-150',
   'bg-pink-50 text-pink-600 border border-pink-100',
   'bg-teal-50 text-teal-700 border border-teal-100',
   'bg-amber-50 text-amber-700 border border-amber-100'
@@ -80,7 +80,7 @@ export default function App() {
   const [isAdminRoute, setIsAdminRoute] = useState(() => window.location.pathname.startsWith('/admin'));
   const [visualTheme, setVisualTheme] = useState<'color' | 'mono'>(() => {
     try {
-      return window.localStorage.getItem('maria-visual-theme') === 'mono' ? 'mono' : 'color';
+      return window.localStorage.getItem('analei-visual-theme') === 'mono' ? 'mono' : 'color';
     } catch {
       return 'color';
     }
@@ -211,7 +211,7 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = visualTheme;
     try {
-      window.localStorage.setItem('maria-visual-theme', visualTheme);
+      window.localStorage.setItem('analei-visual-theme', visualTheme);
     } catch {
       // Ignore private browsing/storage restrictions; the switch still works in-session.
     }
@@ -313,7 +313,7 @@ export default function App() {
   };
 
   return (
-    <div className="theme-shell relative font-sans bg-[#fff8f8] text-stone-800 antialiased min-h-screen">
+    <div className="theme-shell relative font-sans bg-[#f7fbf6] text-stone-800 antialiased min-h-screen">
       
       {/* Dynamic View Panel Router with fade-in animation */}
       <AnimatePresence mode="wait">
@@ -401,14 +401,14 @@ function AdminLogin({
   onSubmit: (e: React.FormEvent) => void;
 }) {
   return (
-    <div className="min-h-screen bg-[#fff8f8] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#f7fbf6] flex items-center justify-center p-6">
       <form onSubmit={onSubmit} className="w-full max-w-md bg-white border border-rose-100 rounded-2xl shadow-sm p-8">
-        <h2 className="font-serif text-3xl font-bold text-[#da4d73] mb-2">Acceso admin</h2>
+        <h2 className="font-serif text-3xl font-bold text-[#2f8f83] mb-2">Acceso admin</h2>
         <p className="text-xs text-stone-500 mb-6">{mode === 'login' ? 'Entra con email y password.' : 'Registro temporal para crear el primer admin.'}</p>
-        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full mb-3 rounded-xl border border-rose-100 px-4 py-3 text-sm outline-[#da4d73]" />
-        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full mb-5 rounded-xl border border-rose-100 px-4 py-3 text-sm outline-[#da4d73]" />
-        <button className="w-full rounded-full bg-[#da4d73] py-3 text-xs font-bold uppercase text-white">{mode === 'login' ? 'Entrar' : 'Crear admin'}</button>
-        <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="mt-3 w-full text-xs font-bold text-[#da4d73]">
+        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full mb-3 rounded-xl border border-rose-100 px-4 py-3 text-sm outline-[#2f8f83]" />
+        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full mb-5 rounded-xl border border-rose-100 px-4 py-3 text-sm outline-[#2f8f83]" />
+        <button className="w-full rounded-full bg-[#2f8f83] py-3 text-xs font-bold uppercase text-white">{mode === 'login' ? 'Entrar' : 'Crear admin'}</button>
+        <button type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="mt-3 w-full text-xs font-bold text-[#2f8f83]">
           {mode === 'login' ? 'Crear primer usuario admin' : 'Ya tengo usuario'}
         </button>
       </form>

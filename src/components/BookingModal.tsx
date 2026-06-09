@@ -81,7 +81,7 @@ export default function BookingModal({ isOpen, onClose, stylists, services, sett
       appearance: {
         theme: 'stripe',
         variables: {
-          colorPrimary: '#da4d73',
+          colorPrimary: '#2f8f83',
           borderRadius: '12px',
           fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif'
         }
@@ -215,12 +215,12 @@ export default function BookingModal({ isOpen, onClose, stylists, services, sett
           >
             {isSuccess ? (
               <div className="p-12 text-center flex flex-col items-center justify-center bg-gradient-to-b from-rose-50 to-transparent">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-16 h-16 bg-[#da4d73] rounded-full flex items-center justify-center text-white mb-6 border border-rose-150 shadow-[0_0_15px_rgba(218,77,115,0.4)]">
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-16 h-16 bg-[#2f8f83] rounded-full flex items-center justify-center text-white mb-6 border border-rose-150 shadow-[0_0_15px_rgba(218,77,115,0.4)]">
                   <Check className="w-8 h-8 font-extrabold" />
                 </motion.div>
                 <h3 className="font-serif text-2xl text-stone-900 font-bold mb-2">Reserva solicitada con exito</h3>
                 <p className="font-sans text-xs text-stone-650 max-w-sm leading-relaxed">
-                  Tu tarjeta queda guardada de forma segura como garantia. Hemos agendado tu cita de <span className="font-bold text-[#da4d73]">{selectedService}</span> para el <span className="font-bold text-stone-900">{selectedDate}</span> a las <span className="font-bold text-stone-900">{selectedTime}</span>.
+                  Tu tarjeta queda guardada de forma segura como garantia. Hemos agendado tu cita de <span className="font-bold text-[#2f8f83]">{selectedService}</span> para el <span className="font-bold text-stone-900">{selectedDate}</span> a las <span className="font-bold text-stone-900">{selectedTime}</span>.
                 </p>
               </div>
             ) : (
@@ -229,7 +229,7 @@ export default function BookingModal({ isOpen, onClose, stylists, services, sett
                   <div>
                     <h3 className="font-serif text-3xl text-[#c83f67] flex items-center gap-3 font-bold">
                       <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-rose-100 bg-white shadow-sm">
-                        <Sparkles className="w-5 h-5 text-[#da4d73] fill-[#da4d73]/20" />
+                        <Sparkles className="w-5 h-5 text-[#2f8f83] fill-[#2f8f83]/20" />
                       </span>
                       Pedir Cita Online
                     </h3>
@@ -587,7 +587,7 @@ function BookingFields({
         <h4 className="font-sans text-xs text-stone-800 uppercase tracking-wider mb-2 font-bold">Resumen de reserva</h4>
         <div className="space-y-2 text-sm text-stone-600 font-sans">
           <div className="flex justify-between gap-4"><span>Tratamiento:</span><span className="font-bold text-stone-800 text-right">{selectedService}</span></div>
-          <div className="flex justify-between"><span>Precio estimado:</span><span className="font-bold text-[#da4d73]">EUR {selectedPrice}</span></div>
+          <div className="flex justify-between"><span>Precio estimado:</span><span className="font-bold text-[#2f8f83]">EUR {selectedPrice}</span></div>
           <div className="flex justify-between"><span>Fecha y hora:</span><span className="font-mono text-stone-850 font-bold">{selectedDate} @ {selectedTime}</span></div>
           <div className="flex justify-between"><span>Penalizacion no-show:</span><span className="font-bold text-stone-800">EUR {noShowFee}</span></div>
         </div>
@@ -595,7 +595,7 @@ function BookingFields({
 
       <div className="rounded-[1.5rem] border border-stone-200 bg-white p-4 shadow-sm md:p-5">
         <div className="flex items-start gap-3 mb-3">
-          <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#da4d73] shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#2f8f83] shrink-0">
             <CreditCard className="w-5 h-5" />
           </div>
           <div>
@@ -611,7 +611,7 @@ function BookingFields({
         {paymentElement}
 
         <label className="mt-3 flex items-start gap-3 rounded-2xl bg-stone-50 p-3 text-xs text-stone-600 leading-relaxed">
-          <input type="checkbox" required className="mt-0.5 accent-[#da4d73]" />
+          <input type="checkbox" required className="mt-0.5 accent-[#2f8f83]" />
           <span>Autorizo guardar mi tarjeta para esta reserva y cobrar la penalizacion de no-show indicada si corresponde.</span>
         </label>
       </div>
@@ -622,7 +622,7 @@ function BookingFields({
         <button id="cancel-booking-btn" type="button" onClick={onCancel} className="flex-1 py-4 text-sm font-bold uppercase tracking-wider rounded-full border border-rose-150 hover:bg-rose-50 text-stone-600 transition-colors cursor-pointer bg-white">
           Cancelar
         </button>
-        <button id="submit-booking-btn" type="submit" disabled={!isPaymentReady || isPreparingPayment || isSubmitting || Boolean(paymentSetupError)} className="flex-1 bg-[#da4d73] text-white py-4 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-rose-600 active:scale-95 transition-all shadow-lg shadow-rose-500/20 text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+        <button id="submit-booking-btn" type="submit" disabled={!isPaymentReady || isPreparingPayment || isSubmitting || Boolean(paymentSetupError)} className="flex-1 bg-[#2f8f83] text-white py-4 rounded-full text-sm font-bold uppercase tracking-wider hover:bg-rose-600 active:scale-95 transition-all shadow-lg shadow-rose-500/20 text-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
           <span className="inline-flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5" />
             {isSubmitting ? 'Validando...' : 'Confirmar Reserva'}

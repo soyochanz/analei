@@ -186,7 +186,8 @@ const newsletterTemplates: Record<string, NewsletterDraft> = {
 const emptyAdminAppointment = { clientName: '', clientEmail: '', clientPhone: '', serviceId: '', stylistId: '', date: isoDate(today()), time: '10:00' };
 const staffToStylists = (staff: AdminStaff[]): StaffStylist[] =>
   staff.filter(s => s.is_active !== false && s.stylist_id).map(s => ({ id: s.stylist_id as string, name: s.name, email: s.email }));
-const normalizeColor = (value?: string) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value as string : '#da4d73';
+const normalizeColor = (value?: string) => /^#[0-9a-fA-F]{6}$/.test(value || '') ? value as string : '#9f6f79';
+const preferredSalon = (salons: Salon[]) => salons.find(salon => normalizeText(salon.name).includes('analei')) || salons[0];
 
 export default function DashboardView({ appointments, stylists, currentUserEmail, onToggleStatus, onDeleteAppointment, onChargeNoShow, onUpdateAppointmentStatus, onOpenBooking, onAddAppointment, onLogout }: DashboardViewProps) {
   const now = today();
@@ -216,7 +217,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     policy_text: 'Si no asistes o cancelas fuera de plazo, se cobrara la penalizacion autorizada al reservar.'
   });
   const [settings, setSettings] = useState<SalonSettings>({
-    salon_name: 'Peluqueria Maria y Estetica',
+    salon_name: 'Analei Beauty Studio',
     phone: '',
     email: '',
     address: '',
@@ -243,7 +244,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   const [salons, setSalons] = useState<Salon[]>([]);
   const [selectedSalonId, setSelectedSalonId] = useState('');
   const [newSalonName, setNewSalonName] = useState('');
-  const [newSalonColor, setNewSalonColor] = useState('#da4d73');
+  const [newSalonColor, setNewSalonColor] = useState('#9f6f79');
 
   const notify = (message: string, type: Notice['type'] = 'success', title = type === 'error' ? 'Revisa esto' : 'Listo') => {
     const notice = { id: Date.now(), title, message, type };
@@ -269,8 +270,12 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
       policy?: any;
     }>('admin-panel', { action: 'load', salonId: selectedSalonId || undefined })
       .then(data => {
-        setSalons(data.salons || []);
-        if (!selectedSalonId && data.selectedSalonId) setSelectedSalonId(data.selectedSalonId);
+        const loadedSalons = data.salons || [];
+        setSalons(loadedSalons);
+        if (!selectedSalonId) {
+          const analeiSalon = preferredSalon(loadedSalons);
+          setSelectedSalonId(analeiSalon?.id || data.selectedSalonId || '');
+        }
         setProducts((data.products || []).filter(p => p.is_active !== false).map(p => ({
           id: p.id,
           name: p.name,
@@ -407,7 +412,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
     setSalons(prev => [...prev, salon].sort((a, b) => a.name.localeCompare(b.name)));
     setSelectedSalonId(salon.id);
     setNewSalonName('');
-    setNewSalonColor('#da4d73');
+    setNewSalonColor('#9f6f79');
     notify('Salon creado.');
   };
 
@@ -682,13 +687,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff1f4_0,#fffbfb_36%,#f8fafc_100%)] text-stone-900 md:pl-72" style={{ '--salon-color': salonColor } as React.CSSProperties}>
+    <div className="min-h-screen bg-[oklch(98.7%_0.008_25)] text-[#2d2522] md:pl-72" style={{ '--salon-color': salonColor } as React.CSSProperties}>
       <NoticeStack notices={notices} onDismiss={id => setNotices(prev => prev.filter(item => item.id !== id))} />
-      <aside className="fixed left-0 top-0 hidden md:flex h-screen w-72 flex-col border-r border-rose-100/70 bg-white/85 p-5 shadow-[20px_0_60px_rgba(190,18,60,0.06)] backdrop-blur-2xl">
-        <div className="mb-6 rounded-3xl border border-rose-100 bg-gradient-to-br from-white via-rose-50 to-pink-50 px-5 py-5 text-stone-900 shadow-xl shadow-rose-100/70">
-          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[var(--salon-color)]">Admin Portal</p>
-          <h1 className="mt-2 font-serif text-3xl font-bold text-stone-950">{currentSalon?.name || 'Maria'}</h1>
-          <p className="mt-2 text-xs leading-relaxed text-stone-500">Reservas, caja, clientes y contenidos en un solo panel.</p>
+      <aside className="fixed left-0 top-0 hidden h-screen w-72 flex-col border-r border-[#eadce0] bg-[oklch(98.7%_0.008_25)] p-5 text-[#2d2522] shadow-[18px_0_60px_rgba(159,111,121,0.12)] md:flex">
+        <div className="mb-6 rounded-[1.5rem] border border-[#eadce0] bg-[#f6e9ed] px-5 py-5 shadow-[0_18px_40px_rgba(159,111,121,0.1)]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#9f6f79]">Analei Studio</p>
+          <h1 className="mt-2 font-serif text-3xl font-bold text-[#2d2522]">{currentSalon?.name || 'Analei'}</h1>
+          <p className="mt-2 text-xs leading-relaxed text-stone-600">Agenda, caja, clientes y contenidos con una lectura mas clara.</p>
         </div>
         <nav className="flex flex-col gap-2 text-xs font-bold">
           <NavButton active={activeTab === 'dashboard'} icon={<CalendarDays className="w-4 h-4" />} label="Agenda" onClick={() => setActiveTab('dashboard')} />
@@ -701,18 +706,18 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
           <NavButton active={activeTab === 'settings'} icon={<Settings className="w-4 h-4" />} label="Ajustes y no-show" onClick={() => setActiveTab('settings')} />
           <NavButton active={activeTab === 'pos'} icon={<ShoppingCart className="w-4 h-4" />} label="POS tactil" onClick={() => setActiveTab('pos')} />
         </nav>
-        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--salon-color)] px-4 py-3 text-xs font-bold uppercase text-white shadow-lg shadow-rose-200 transition-transform active:scale-95">
+        <button onClick={onOpenBooking} className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-[#eadce0] px-4 py-3 text-xs font-bold uppercase text-[#2d2522] shadow-[0_16px_34px_rgba(159,111,121,0.18)] transition-transform active:scale-95">
           <Plus className="w-4 h-4" /> Nueva reserva
         </button>
-        <button onClick={onLogout} className="mt-3 inline-flex items-center justify-center rounded-2xl border border-rose-100 bg-white px-4 py-3 text-xs font-bold uppercase text-stone-600 hover:bg-rose-50">
+        <button onClick={onLogout} className="mt-3 inline-flex items-center justify-center rounded-2xl border border-[#eadce0] bg-white px-4 py-3 text-xs font-bold uppercase text-[#7f5861] hover:bg-[#f6e9ed]">
           Logout
         </button>
       </aside>
 
       <main className="p-5 pt-8 md:p-10">
-        <header className="mb-8 flex flex-col gap-4 rounded-[2rem] border border-white/80 bg-white/70 p-5 shadow-sm backdrop-blur-xl md:flex-row md:items-end md:justify-between">
+        <header className="mb-8 flex flex-col gap-4 rounded-[1.5rem] border border-[#eadce0] bg-[oklch(98.7%_0.008_25)] p-5 shadow-[0_20px_55px_rgba(159,111,121,0.08)] md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-[var(--salon-color)]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-[#9f6f79]">{now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             <h2 className="font-serif text-3xl font-bold">Panel de control</h2>
             <div className="mt-4 flex flex-wrap items-end gap-2">
               <Select label="Salon activo" value={selectedSalonId} onChange={setSelectedSalonId}>
@@ -720,14 +725,14 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
               </Select>
               {currentSalon && (
                 <>
-                  <button onClick={renameSalon} className="rounded-xl border border-rose-100 bg-white px-4 py-2 text-xs font-bold uppercase text-stone-700 hover:bg-rose-50">Editar nombre</button>
+                  <button onClick={renameSalon} className="rounded-xl border border-stone-950/10 bg-white px-4 py-2 text-xs font-bold uppercase text-stone-700 hover:bg-stone-50">Editar nombre</button>
                   <Field label="Color panel" type="color" value={salonColor} onChange={value => updateSalon({ brand_color: value })} />
-                  <button onClick={deleteSalon} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold uppercase text-rose-600 hover:bg-rose-50">Eliminar salon</button>
+                  <button onClick={deleteSalon} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold uppercase text-rose-700 hover:bg-rose-50">Eliminar salon</button>
                 </>
               )}
               <Field label="Nuevo salon" value={newSalonName} onChange={setNewSalonName} />
               <Field label="Color nuevo" type="color" value={newSalonColor} onChange={setNewSalonColor} />
-              <button onClick={createSalon} className="rounded-xl bg-[var(--salon-color)] px-4 py-2 text-xs font-bold uppercase text-white">Crear salon</button>
+              <button onClick={createSalon} className="rounded-xl bg-[#9f6f79] px-4 py-2 text-xs font-bold uppercase text-white">Crear salon</button>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex">
@@ -749,7 +754,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
               <Metric icon={<ShoppingCart className="w-5 h-5" />} label="No-show cobrado" value={eur(analytics.noShowRevenue)} />
             </section>
 
-            <section className="mb-5 rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
+            <section className="mb-5 rounded-[1.25rem] border border-stone-950/10 bg-white p-4 shadow-[0_16px_40px_rgba(46,38,29,0.06)]">
               <div className="flex flex-wrap items-end gap-3">
                 <Select label="Vista" value={dateFilter} onChange={value => setDateFilter(value as DateFilter)}>
                   <option value="today">Hoy</option>
@@ -774,13 +779,13 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
               </div>
             </section>
 
-            <section className="mb-5 rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
+            <section className="mb-5 rounded-[1.25rem] border border-stone-950/10 bg-white p-4 shadow-[0_16px_40px_rgba(46,38,29,0.06)]">
               <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h3 className="font-serif text-xl font-bold">Crear walk-in / cita admin</h3>
                   <p className="text-xs text-stone-500">Sin tarjeta ni garantia de pago. Busca ficha por nombre, telefono o email.</p>
                 </div>
-                <button onClick={createAdminAppointment} className="rounded-full bg-stone-900 px-5 py-3 text-xs font-bold uppercase text-white">Guardar cita</button>
+                <button onClick={createAdminAppointment} className="rounded-full bg-[#9f6f79] px-5 py-3 text-xs font-bold uppercase text-white">Guardar cita</button>
               </div>
               <div className="grid gap-3 md:grid-cols-4">
                 <Field label="Nombre cliente" value={adminAppointment.clientName} onChange={v => setAdminAppointment(ap => ({ ...ap, clientName: v }))} />
@@ -809,7 +814,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
             </section>
 
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-              <div className="xl:col-span-8 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+              <div className="rounded-[1.25rem] border border-stone-950/10 bg-white p-5 shadow-[0_16px_40px_rgba(46,38,29,0.06)] xl:col-span-8">
                 <h3 className="mb-4 font-serif text-xl font-bold">Listado de citas</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
@@ -848,7 +853,7 @@ export default function DashboardView({ appointments, stylists, currentUserEmail
                 </div>
               </div>
 
-              <div className="xl:col-span-4 rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+              <div className="rounded-[1.25rem] border border-stone-950/10 bg-white p-5 shadow-[0_16px_40px_rgba(46,38,29,0.06)] xl:col-span-4">
                 <h3 className="mb-4 font-serif text-xl font-bold">{now.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</h3>
                 <div className="grid grid-cols-7 gap-1 text-center text-xs">
                   {['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map(day => <div key={day} className="py-1 font-bold text-stone-400">{day}</div>)}
@@ -935,7 +940,7 @@ function DailySchedulePage({
           <p className="text-xs font-bold uppercase tracking-widest text-[var(--salon-color)]">Calendario operativo</p>
           <h3 className="font-serif text-4xl font-bold">Agenda del dia</h3>
         </div>
-        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-rose-100 bg-white p-3 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3 rounded-[1.25rem] border border-stone-950/10 bg-white p-3 shadow-[0_16px_40px_rgba(46,38,29,0.06)]">
           <Field label="Dia" type="date" value={date} onChange={setDate} />
           <Select label="Profesional" value={staffScope} onChange={value => setStaffScope(value as 'all' | 'mine')}>
             <option value="all">Todas</option>
@@ -943,7 +948,7 @@ function DailySchedulePage({
           </Select>
         </div>
       </div>
-      <div className="overflow-auto rounded-2xl border border-rose-100 bg-white shadow-sm">
+      <div className="overflow-auto rounded-[1.25rem] border border-stone-950/10 bg-white shadow-[0_16px_40px_rgba(46,38,29,0.06)]">
         <div className="grid min-w-[920px]" style={{ gridTemplateColumns: `88px repeat(${rows.length}, minmax(210px, 1fr))` }}>
           <div className="sticky left-0 top-0 z-20 border-b border-r border-rose-100 bg-white p-4 text-[10px] font-bold uppercase tracking-widest text-stone-400">Hora</div>
           {rows.map(row => (
@@ -1000,19 +1005,19 @@ function appointmentHour(time: string) {
   return hour;
 }
 function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${active ? 'bg-[var(--salon-color)] text-white shadow-lg shadow-rose-200' : 'text-stone-500 hover:bg-rose-50/80 hover:text-stone-900'}`}>{icon}<span>{label}</span></button>;
+  return <button onClick={onClick} className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all ${active ? 'bg-[#9f6f79] text-white shadow-[0_14px_30px_rgba(159,111,121,0.22)]' : 'text-stone-600 hover:bg-[#f6e9ed] hover:text-[#7f5861]'}`}>{icon}<span>{label}</span></button>;
 }
 
 function MobileTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`rounded-full px-3 py-2 text-[10px] font-bold uppercase ${active ? 'bg-[var(--salon-color)] text-white' : 'bg-white text-stone-500 border border-rose-100'}`}>{label}</button>;
+  return <button onClick={onClick} className={`rounded-full px-3 py-2 text-[10px] font-bold uppercase ${active ? 'bg-[#9f6f79] text-white' : 'bg-white text-stone-500 border border-[#eadce0]'}`}>{label}</button>;
 }
 
 function NoticeStack({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id: number) => void }) {
   return <div className="fixed right-5 top-5 z-[80] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-3">
     {notices.map(notice => (
-      <div key={notice.id} className={`rounded-2xl border bg-white/95 p-4 shadow-2xl backdrop-blur-xl ${notice.type === 'error' ? 'border-rose-200' : notice.type === 'info' ? 'border-stone-200' : 'border-emerald-100'}`}>
+      <div key={notice.id} className={`rounded-2xl border bg-white/95 p-4 shadow-2xl backdrop-blur-xl ${notice.type === 'error' ? 'border-rose-200' : notice.type === 'info' ? 'border-stone-200' : 'border-rose-100'}`}>
         <div className="flex items-start gap-3">
-          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${notice.type === 'error' ? 'bg-rose-50 text-[#da4d73]' : notice.type === 'info' ? 'bg-stone-100 text-stone-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${notice.type === 'error' ? 'bg-rose-50 text-[#9f6f79]' : notice.type === 'info' ? 'bg-stone-100 text-stone-700' : 'bg-rose-50 text-[#9f6f79]'}`}>
             {notice.type === 'error' ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
           </div>
           <div className="min-w-0 flex-1">
@@ -1029,28 +1034,28 @@ function NoticeStack({ notices, onDismiss }: { notices: Notice[]; onDismiss: (id
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return <div className="rounded-[1.5rem] border border-white/80 bg-white/85 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-rose-100"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-[var(--salon-color)]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
+  return <div className="rounded-[1.35rem] border border-[#eadce0] bg-[oklch(98.7%_0.008_25)] p-5 shadow-[0_16px_40px_rgba(159,111,121,0.08)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(159,111,121,0.12)]"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#eadce0] text-[#7f5861]">{icon}</div><p className="text-[10px] font-bold uppercase tracking-widest text-stone-500">{label}</p><p className="mt-1 font-serif text-3xl font-bold">{value}</p></div>;
 }
 
 function Field({ label, value, onChange, type = 'text' }: { label: string; value: string | number; onChange: (value: string) => void; type?: string }) {
-  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[var(--salon-color)]" /></label>;
+  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-500">{label}<input type={type} value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-[#eadce0] bg-white px-3 py-2 text-xs text-stone-800 outline-[#9f6f79]" /></label>;
 }
 
 function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}<select value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs text-stone-800 outline-[var(--salon-color)]">{children}</select></label>;
+  return <label className="text-[10px] font-bold uppercase tracking-widest text-stone-500">{label}<select value={value} onChange={e => onChange(e.target.value)} className="mt-1 block rounded-xl border border-[#eadce0] bg-white px-3 py-2 text-xs text-stone-800 outline-[#9f6f79]">{children}</select></label>;
 }
 
 function IconButton({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
-  return <button title={title} onClick={onClick} className="rounded-lg border border-rose-100 p-1.5 text-stone-500 hover:bg-rose-50">{children}</button>;
+  return <button title={title} onClick={onClick} className="rounded-lg border border-stone-950/10 p-1.5 text-stone-500 hover:bg-stone-100">{children}</button>;
 }
 
 function MenuAction({ children, onClick, danger = false }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
-  return <button onClick={onClick} className={`block w-full rounded-lg px-3 py-2 text-left text-[11px] font-bold ${danger ? 'text-rose-600 hover:bg-rose-50' : 'text-stone-700 hover:bg-rose-50'}`}>{children}</button>;
+  return <button onClick={onClick} className={`block w-full rounded-lg px-3 py-2 text-left text-[11px] font-bold ${danger ? 'text-rose-700 hover:bg-rose-50' : 'text-stone-700 hover:bg-stone-100'}`}>{children}</button>;
 }
 
 function Status({ appointment }: { appointment: Appointment }) {
   const label = appointment.status === 'NoShow' ? 'No-show' : appointment.status === 'Confirmed' ? 'Confirmada' : appointment.status === 'Cancelled' ? 'Cancelada' : 'Pendiente';
-  return <div className="flex flex-col gap-1"><span className="w-fit rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-[var(--salon-color)]">{label}</span>{appointment.paymentGuaranteeStatus === 'charged' && <span className="w-fit rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-bold text-stone-700">No-show cobrado</span>}{appointment.paymentGuaranteeStatus === 'secured' && <span className="w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">Tarjeta guardada</span>}</div>;
+  return <div className="flex flex-col gap-1"><span className="w-fit rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-[var(--salon-color)]">{label}</span>{appointment.paymentGuaranteeStatus === 'charged' && <span className="w-fit rounded-full bg-stone-100 px-2 py-0.5 text-[9px] font-bold text-stone-700">No-show cobrado</span>}{appointment.paymentGuaranteeStatus === 'secured' && <span className="w-fit rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-[#9f6f79]">Tarjeta guardada</span>}</div>;
 }
 
 function ClientsView({
@@ -1088,20 +1093,20 @@ function ClientsView({
         <Field label="Cumpleanos" type="date" value={editingClient.birthdate || ''} onChange={v => setEditingClient(c => ({ ...c, birthdate: v }))} />
         <Field label="Alergias" value={editingClient.allergies || ''} onChange={v => setEditingClient(c => ({ ...c, allergies: v }))} />
         <Field label="Preferencias" value={editingClient.preferences || ''} onChange={v => setEditingClient(c => ({ ...c, preferences: v }))} />
-        <textarea value={editingClient.notes || ''} onChange={e => setEditingClient(c => ({ ...c, notes: e.target.value }))} placeholder="Notas internas" className="h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+        <textarea value={editingClient.notes || ''} onChange={e => setEditingClient(c => ({ ...c, notes: e.target.value }))} placeholder="Notas internas" className="h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#9f6f79]" />
         <div className="flex gap-2">
-          <button onClick={saveClient} className="rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ficha</button>
+          <button onClick={saveClient} className="rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ficha</button>
           <button onClick={() => setEditingClient(emptyClient)} className="rounded-full border border-rose-100 px-5 py-2 text-xs font-bold uppercase text-stone-600">Nueva</button>
         </div>
       </div>
     </Panel>
     <Panel title="Fichas de clientes">
-      <input value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Buscar por nombre, email o telefono" className="mb-5 w-full rounded-2xl border border-rose-100 px-4 py-3 text-sm outline-[#da4d73]" />
+      <input value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Buscar por nombre, email o telefono" className="mb-5 w-full rounded-2xl border border-rose-100 px-4 py-3 text-sm outline-[#9f6f79]" />
       <div className="grid gap-3 md:grid-cols-2">
         {visibleClients.map(client => <div key={client.key} className="rounded-2xl border border-rose-100 p-4">
           <div className="flex items-start gap-3">
             <div className="h-14 w-14 overflow-hidden rounded-2xl bg-rose-50">
-              {client.photo_url ? <img src={client.photo_url} alt={client.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center font-serif text-xl font-bold text-[#da4d73]">{client.name.slice(0, 1).toUpperCase()}</div>}
+              {client.photo_url ? <img src={client.photo_url} alt={client.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center font-serif text-xl font-bold text-[#9f6f79]">{client.name.slice(0, 1).toUpperCase()}</div>}
             </div>
             <div className="min-w-0 flex-1">
               <p className="font-bold">{client.name}</p>
@@ -1192,15 +1197,15 @@ function ContentView({
           <Field label="Tiempo lectura" value={editingPost.read_time} onChange={v => setEditingPost(p => ({ ...p, read_time: v }))} />
           <Field label="Portada imagen URL" value={editingPost.cover_image_url || ''} onChange={v => setEditingPost(p => ({ ...p, cover_image_url: v }))} />
         </div>
-        <textarea value={editingPost.summary} onChange={e => setEditingPost(p => ({ ...p, summary: e.target.value }))} placeholder="Resumen" className="mt-3 h-20 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+        <textarea value={editingPost.summary} onChange={e => setEditingPost(p => ({ ...p, summary: e.target.value }))} placeholder="Resumen" className="mt-3 h-20 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#9f6f79]" />
         <div className="mt-3 flex gap-2">
           <button type="button" onClick={() => applyFormat('strong')} className="rounded-lg bg-white px-3 py-2 text-xs font-bold">B</button>
           <button type="button" onClick={() => applyFormat('em')} className="rounded-lg bg-white px-3 py-2 text-xs font-bold">I</button>
           <button type="button" onClick={() => setEditingPost(p => ({ ...p, content_html: `${p.content_html}<p></p>` }))} className="rounded-lg bg-white px-3 py-2 text-xs font-bold">Parrafo</button>
         </div>
-        <div contentEditable suppressContentEditableWarning onInput={e => setEditingPost(p => ({ ...p, content_html: e.currentTarget.innerHTML }))} className="mt-3 min-h-40 rounded-xl border border-rose-100 bg-white p-3 text-sm outline-[#da4d73]" dangerouslySetInnerHTML={{ __html: editingPost.content_html }} />
+        <div contentEditable suppressContentEditableWarning onInput={e => setEditingPost(p => ({ ...p, content_html: e.currentTarget.innerHTML }))} className="mt-3 min-h-40 rounded-xl border border-rose-100 bg-white p-3 text-sm outline-[#9f6f79]" dangerouslySetInnerHTML={{ __html: editingPost.content_html }} />
         <label className="mt-3 flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editingPost.is_published !== false} onChange={e => setEditingPost(p => ({ ...p, is_published: e.target.checked }))} /> Publicado</label>
-        <button onClick={savePost} className="mt-4 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar post</button>
+        <button onClick={savePost} className="mt-4 rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white">Guardar post</button>
       </div>
       <div className="space-y-2">{posts.map(post => <div key={post.id} className="rounded-xl border border-rose-100 p-3"><p className="font-bold">{post.title}</p><p className="text-xs text-stone-500">{post.category} · {post.read_time}</p><div className="mt-2 flex gap-2"><button onClick={() => setEditingPost(post)} className="rounded-lg border border-rose-100 px-3 py-1 text-xs font-bold">Editar</button><button onClick={() => removePost(post.id)} className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">Eliminar</button></div></div>)}</div>
     </Panel>
@@ -1214,11 +1219,11 @@ function ContentView({
           </Select>
           <Field label="Asunto" value={newsletterDraft.subject} onChange={v => setNewsletterDraft(d => ({ ...d, subject: v }))} />
         </div>
-        <textarea value={newsletterDraft.body_html} onChange={e => setNewsletterDraft(d => ({ ...d, body_html: e.target.value, template: d.template || 'custom' }))} className="h-44 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
+        <textarea value={newsletterDraft.body_html} onChange={e => setNewsletterDraft(d => ({ ...d, body_html: e.target.value, template: d.template || 'custom' }))} className="h-44 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#9f6f79]" />
         <div className="mt-3 rounded-xl bg-white p-3 text-sm" dangerouslySetInnerHTML={{ __html: newsletterDraft.body_html }} />
         <div className="mt-4 flex flex-wrap gap-2">
-          <button onClick={sendNewsletter} disabled={isSendingNewsletter} className="rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white disabled:opacity-50">{isSendingNewsletter ? 'Enviando...' : `Enviar a ${subscribers.length} emails`}</button>
-          <button onClick={exportSubscribers} className="rounded-full bg-stone-900 px-5 py-2 text-xs font-bold uppercase text-white">Exportar Excel</button>
+          <button onClick={sendNewsletter} disabled={isSendingNewsletter} className="rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white disabled:opacity-50">{isSendingNewsletter ? 'Enviando...' : `Enviar a ${subscribers.length} emails`}</button>
+          <button onClick={exportSubscribers} className="rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white">Exportar Excel</button>
         </div>
         <p className="mt-3 text-xs text-stone-500">Para enviar emails reales configura `RESEND_API_KEY` y opcionalmente `NEWSLETTER_FROM_EMAIL` en Supabase Edge Functions.</p>
       </div>
@@ -1231,7 +1236,7 @@ function ContentView({
 }
 
 function Editor({ title, children, onSave, onNew }: { title: string; children: React.ReactNode; onSave: () => Promise<void>; onNew: () => void }) {
-  return <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50/20 p-4"><div className="mb-3 flex items-center justify-between"><h4 className="font-bold">{title}</h4><button onClick={onNew} className="rounded-lg border border-rose-100 bg-white p-2"><X className="w-4 h-4" /></button></div><div className="grid gap-3 md:grid-cols-2">{children}</div><button onClick={onSave} className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#da4d73] px-4 py-2 text-xs font-bold uppercase text-white"><Save className="w-4 h-4" /> Guardar</button></div>;
+  return <div className="mb-5 rounded-xl border border-rose-100 bg-rose-50/20 p-4"><div className="mb-3 flex items-center justify-between"><h4 className="font-bold">{title}</h4><button onClick={onNew} className="rounded-lg border border-rose-100 bg-white p-2"><X className="w-4 h-4" /></button></div><div className="grid gap-3 md:grid-cols-2">{children}</div><button onClick={onSave} className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#9f6f79] px-4 py-2 text-xs font-bold uppercase text-white"><Save className="w-4 h-4" /> Guardar</button></div>;
 }
 
 function List<T extends { id?: string; name: string; price: number; brand?: string; duration_minutes?: number; stock?: number }>({ items, onEdit, onDelete }: { items: T[]; onEdit: (item: T) => void; onDelete: (id?: string) => void }) {
@@ -1278,13 +1283,13 @@ function SettingsView({ policy, settings, setPolicy, setSettings, savePolicy, sa
         )}
       </div>
 
-      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+      <div className="mt-4 rounded-2xl border border-rose-100 bg-amber-50 p-4 text-sm font-bold text-[#7f5861]">
         {policy.enabled ? policyPreview : 'La politica esta desactivada: no se cobrara ninguna penalizacion no-show.'}
       </div>
 
       <label className="mt-4 block text-xs font-bold uppercase tracking-wider text-stone-500">Texto de politica visible para clientes</label>
-      <textarea value={policy.policy_text} onChange={e => setPolicy(p => ({ ...p, policy_text: e.target.value }))} className="mt-2 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
-      <button onClick={savePolicy} className="mt-3 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar politica</button>
+      <textarea value={policy.policy_text} onChange={e => setPolicy(p => ({ ...p, policy_text: e.target.value }))} className="mt-2 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#9f6f79]" />
+      <button onClick={savePolicy} className="mt-3 rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white">Guardar politica</button>
     </Panel>
     <Panel title="Ajustes de salon">
       <div className="grid gap-3 md:grid-cols-2">
@@ -1295,8 +1300,8 @@ function SettingsView({ policy, settings, setPolicy, setSettings, savePolicy, sa
         <Field label="Apertura" type="time" value={settings.opening_time || '09:00'} onChange={v => setSettings(s => ({ ...s, opening_time: v }))} />
         <Field label="Cierre" type="time" value={settings.closing_time || '20:30'} onChange={v => setSettings(s => ({ ...s, closing_time: v }))} />
       </div>
-      <textarea value={settings.opening_hours} onChange={e => setSettings(s => ({ ...s, opening_hours: e.target.value }))} placeholder="Horario" className="mt-3 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#da4d73]" />
-      <button onClick={saveSettings} className="mt-3 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ajustes</button>
+      <textarea value={settings.opening_hours} onChange={e => setSettings(s => ({ ...s, opening_hours: e.target.value }))} placeholder="Horario" className="mt-3 h-28 w-full rounded-xl border border-rose-100 p-3 text-sm outline-[#9f6f79]" />
+      <button onClick={saveSettings} className="mt-3 rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white">Guardar ajustes</button>
     </Panel>
   </div>;
 }
@@ -1359,11 +1364,11 @@ function PosView({
   return <div className="grid min-h-[78vh] gap-6 xl:grid-cols-12">
     <div className="xl:col-span-3 rounded-2xl border border-rose-100 bg-white p-4">
       <h3 className="mb-4 font-serif text-2xl font-bold">Clientes hoy</h3>
-      <button onClick={() => setPosClient(null)} className={`mb-2 w-full rounded-xl p-3 text-left text-sm font-bold ${!posClient ? 'bg-[#da4d73] text-white' : 'bg-rose-50'}`}>Mostrador</button>
-      <div className="space-y-2">{appointmentsToday.map(ap => <button key={ap.id} onClick={() => setPosClient({ appointmentId: ap.id, name: ap.clientName, email: ap.clientEmail, phone: ap.clientPhone })} className={`w-full rounded-xl p-3 text-left text-sm font-bold ${posClient?.appointmentId === ap.id ? 'bg-[#da4d73] text-white' : 'bg-rose-50/60'}`}><span>{ap.clientName}</span><span className="block text-[10px] opacity-70">{ap.time} · {ap.service}</span></button>)}</div>
+      <button onClick={() => setPosClient(null)} className={`mb-2 w-full rounded-xl p-3 text-left text-sm font-bold ${!posClient ? 'bg-[#9f6f79] text-white' : 'bg-rose-50'}`}>Mostrador</button>
+      <div className="space-y-2">{appointmentsToday.map(ap => <button key={ap.id} onClick={() => setPosClient({ appointmentId: ap.id, name: ap.clientName, email: ap.clientEmail, phone: ap.clientPhone })} className={`w-full rounded-xl p-3 text-left text-sm font-bold ${posClient?.appointmentId === ap.id ? 'bg-[#9f6f79] text-white' : 'bg-rose-50/60'}`}><span>{ap.clientName}</span><span className="block text-[10px] opacity-70">{ap.time} · {ap.service}</span></button>)}</div>
       {posClient && (
         <div className="mt-5 rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#da4d73]">Ficha cliente</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[#9f6f79]">Ficha cliente</p>
           <h4 className="font-serif text-xl font-bold">{posClient.name}</h4>
           <p className="text-xs text-stone-500">{posClient.email || 'Sin email'}{posClient.phone ? ` · ${posClient.phone}` : ''}</p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-center">
@@ -1380,10 +1385,10 @@ function PosView({
         <div className="mt-5 rounded-2xl border border-stone-200 bg-white p-4">
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Acciones cita</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Confirmed')} className="min-h-16 rounded-2xl bg-emerald-600 px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Confirmar</button>
+            <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Confirmed')} className="min-h-16 rounded-2xl bg-[#9f6f79] px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Confirmar</button>
             <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Pending')} className="min-h-16 rounded-2xl bg-amber-500 px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Pendiente</button>
             <button onClick={() => updateAppointmentStatus(selectedAppointment, 'Cancelled')} className="min-h-16 rounded-2xl bg-stone-800 px-3 py-3 text-sm font-black uppercase text-white active:scale-95">Cancelar</button>
-            <button onClick={() => chargeNoShow(selectedAppointment)} className="min-h-16 rounded-2xl bg-[#da4d73] px-3 py-3 text-sm font-black uppercase text-white active:scale-95">
+            <button onClick={() => chargeNoShow(selectedAppointment)} className="min-h-16 rounded-2xl bg-[#9f6f79] px-3 py-3 text-sm font-black uppercase text-white active:scale-95">
               {selectedAppointment.stripeCustomerId && selectedAppointment.paymentGuaranteeStatus !== 'charged' ? 'Cobrar no-show' : 'No-show'}
             </button>
           </div>
@@ -1405,13 +1410,13 @@ function PosView({
           <div className="rounded-2xl border border-rose-100 bg-rose-50/30 p-4">
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Entrada manual</p>
             <div className="grid gap-2 md:grid-cols-[1fr_120px_auto]">
-              <button onClick={() => setManualKeyboardTarget('name')} className={`rounded-xl border px-3 py-4 text-left text-sm font-bold ${manualKeyboardTarget === 'name' ? 'border-[#da4d73] bg-white text-stone-900 shadow-sm' : 'border-rose-100 bg-white text-stone-500'}`}>
+              <button onClick={() => setManualKeyboardTarget('name')} className={`rounded-xl border px-3 py-4 text-left text-sm font-bold ${manualKeyboardTarget === 'name' ? 'border-[#9f6f79] bg-white text-stone-900 shadow-sm' : 'border-rose-100 bg-white text-stone-500'}`}>
                 {manualItemName || 'Nombre concepto'}
               </button>
-              <button onClick={() => setManualKeyboardTarget('price')} className={`rounded-xl border px-3 py-4 text-left text-sm font-bold ${manualKeyboardTarget === 'price' ? 'border-[#da4d73] bg-white text-stone-900 shadow-sm' : 'border-rose-100 bg-white text-stone-500'}`}>
+              <button onClick={() => setManualKeyboardTarget('price')} className={`rounded-xl border px-3 py-4 text-left text-sm font-bold ${manualKeyboardTarget === 'price' ? 'border-[#9f6f79] bg-white text-stone-900 shadow-sm' : 'border-rose-100 bg-white text-stone-500'}`}>
                 {manualItemPrice ? `${manualItemPrice} EUR` : 'Precio'}
               </button>
-              <button onClick={addManualItem} className="rounded-xl bg-stone-900 px-5 py-4 text-xs font-bold uppercase text-white active:scale-95">Anadir</button>
+              <button onClick={addManualItem} className="rounded-xl bg-[#9f6f79] px-5 py-4 text-xs font-bold uppercase text-white active:scale-95">Anadir</button>
             </div>
             {manualKeyboardTarget && (
               <TouchKeyboard
@@ -1434,7 +1439,7 @@ function PosView({
             <div className="grid grid-cols-3 gap-3">
               <button onClick={() => closeRegister('cash')} className="min-h-20 rounded-2xl bg-stone-100 py-3 text-sm font-black uppercase active:scale-95">Cash</button>
               <button onClick={() => closeRegister('card')} className="min-h-20 rounded-2xl bg-stone-100 py-3 text-sm font-black uppercase active:scale-95">Tarjeta</button>
-              <button onClick={() => closeRegister('all')} className="min-h-20 rounded-2xl bg-stone-900 py-3 text-sm font-black uppercase text-white active:scale-95">Total</button>
+              <button onClick={() => closeRegister('all')} className="min-h-20 rounded-2xl bg-[#9f6f79] py-3 text-sm font-black uppercase text-white active:scale-95">Total</button>
             </div>
             <p className="mt-3 text-[10px] text-stone-400">{sales.length} cobros · {closures.length} cierres</p>
           </div>
@@ -1444,24 +1449,24 @@ function PosView({
     </div>
     <div className="xl:col-span-4 rounded-2xl border border-rose-100 bg-white p-5">
       <h3 className="font-serif text-3xl font-bold">Ticket</h3>
-      <p className="mb-4 text-xs font-bold text-[#da4d73]">{posClient ? posClient.name : 'Venta mostrador'}</p>
+      <p className="mb-4 text-xs font-bold text-[#9f6f79]">{posClient ? posClient.name : 'Venta mostrador'}</p>
       <div className="space-y-2">{cart.map((item, index) => <button key={`${item.name}-${index}`} onClick={() => removeCartItem(index)} className="flex w-full items-center justify-between rounded-xl bg-rose-50/40 p-3 text-left text-sm active:scale-[0.99]"><span><b>{item.name}</b><span className="block text-[10px] font-bold uppercase tracking-widest text-stone-400">Tocar para eliminar</span></span><b>{eur(item.price * (item.quantity || 1))}</b></button>)}</div>
-      <div className="mt-5 border-t border-rose-100 pt-5"><div className="flex justify-between font-serif text-4xl font-bold"><span>Total</span><span>{eur(total)}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><button onClick={() => completeSale('cash')} className="rounded-2xl bg-stone-900 py-5 text-sm font-bold uppercase text-white">Cash</button><button onClick={() => completeSale('card')} className="rounded-2xl bg-[#da4d73] py-5 text-sm font-bold uppercase text-white">Tarjeta</button></div><button onClick={() => setCart([])} className="mt-2 w-full rounded-full border border-rose-100 py-3 text-xs font-bold uppercase">Vaciar</button></div>
+      <div className="mt-5 border-t border-rose-100 pt-5"><div className="flex justify-between font-serif text-4xl font-bold"><span>Total</span><span>{eur(total)}</span></div><div className="mt-5 grid grid-cols-2 gap-2"><button onClick={() => completeSale('cash')} className="rounded-2xl bg-[#9f6f79] py-5 text-sm font-bold uppercase text-white">Cash</button><button onClick={() => completeSale('card')} className="rounded-2xl bg-[#9f6f79] py-5 text-sm font-bold uppercase text-white">Tarjeta</button></div><button onClick={() => setCart([])} className="mt-2 w-full rounded-full border border-rose-100 py-3 text-xs font-bold uppercase">Vaciar</button></div>
     </div>
   </div>;
 }
 
 function PosTabButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
-  return <button onClick={onClick} className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black uppercase active:scale-95 ${active ? 'border-[#da4d73] bg-[#da4d73] text-white shadow-lg shadow-rose-100' : 'border-rose-100 bg-rose-50/40 text-stone-700'}`}>{icon}<span>{label}</span></button>;
+  return <button onClick={onClick} className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black uppercase active:scale-95 ${active ? 'border-[#9f6f79] bg-[#9f6f79] text-white shadow-lg shadow-rose-100' : 'border-rose-100 bg-rose-50/40 text-stone-700'}`}>{icon}<span>{label}</span></button>;
 }
 
 function PosItemGrid({ items, setCart }: { items: { id?: string; name: string; price: number; type: string }[]; setCart: React.Dispatch<React.SetStateAction<{ id?: string; name: string; price: number; type: string; quantity?: number }[]>> }) {
   return <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
     {items.map(item => (
       <button key={`${item.type}-${item.id || item.name}`} onClick={() => setCart(prev => [...prev, { ...item, quantity: 1 }])} className="min-h-36 rounded-2xl border border-rose-100 bg-rose-50/30 p-4 text-left text-lg font-bold active:scale-95">
-        <LayoutGrid className="mb-3 h-6 w-6 text-[#da4d73]" />
+        <LayoutGrid className="mb-3 h-6 w-6 text-[#9f6f79]" />
         {item.name}
-        <span className="mt-3 block text-xl text-[#da4d73]">{eur(item.price)}</span>
+        <span className="mt-3 block text-xl text-[#9f6f79]">{eur(item.price)}</span>
         <span className="text-[10px] uppercase tracking-widest text-stone-400">{item.type}</span>
       </button>
     ))}
@@ -1502,10 +1507,10 @@ function TouchKeyboard({
   return <div className="mt-4 rounded-2xl border border-rose-100 bg-white p-3 shadow-sm">
     <div className="mb-3 flex items-center justify-between gap-2">
       <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => onSwitch('name')} className={`rounded-xl px-4 py-3 text-xs font-black uppercase ${mode === 'name' ? 'bg-[#da4d73] text-white' : 'bg-rose-50 text-stone-600'}`}>Concepto</button>
-        <button onClick={() => onSwitch('price')} className={`rounded-xl px-4 py-3 text-xs font-black uppercase ${mode === 'price' ? 'bg-[#da4d73] text-white' : 'bg-rose-50 text-stone-600'}`}>Precio</button>
+        <button onClick={() => onSwitch('name')} className={`rounded-xl px-4 py-3 text-xs font-black uppercase ${mode === 'name' ? 'bg-[#9f6f79] text-white' : 'bg-rose-50 text-stone-600'}`}>Concepto</button>
+        <button onClick={() => onSwitch('price')} className={`rounded-xl px-4 py-3 text-xs font-black uppercase ${mode === 'price' ? 'bg-[#9f6f79] text-white' : 'bg-rose-50 text-stone-600'}`}>Precio</button>
       </div>
-      <button onClick={onDone} className="rounded-xl bg-stone-900 px-5 py-3 text-xs font-black uppercase text-white">Listo</button>
+      <button onClick={onDone} className="rounded-xl bg-[#9f6f79] px-5 py-3 text-xs font-black uppercase text-white">Listo</button>
     </div>
     <div className="mb-3 min-h-12 rounded-xl bg-rose-50/50 px-4 py-3 text-lg font-bold text-stone-900">
       {value || (mode === 'price' ? '0.00' : 'Nombre del concepto')}
@@ -1546,7 +1551,7 @@ function CloseoutTicket({ closeout, onClose }: { closeout: { mode: 'consulta' | 
     </div>
     <div className="border-t border-dashed border-stone-300 pt-4">
       <div className="flex justify-between text-xl font-black"><span>TOTAL</span><span>{eur(closeout.total)}</span></div>
-      <button onClick={onClose} className="mt-4 w-full rounded-full bg-stone-900 py-2 text-xs font-bold uppercase text-white">Cerrar ticket</button>
+      <button onClick={onClose} className="mt-4 w-full rounded-full bg-[#9f6f79] py-2 text-xs font-bold uppercase text-white">Cerrar ticket</button>
     </div>
   </div>;
 }
@@ -1572,20 +1577,20 @@ function AnalyticsView({ sales, saleItems, appointments }: { sales: PosSale[]; s
     <section className="rounded-[2rem] border border-rose-100 bg-gradient-to-br from-white via-rose-50/80 to-pink-50 p-6 text-stone-900 shadow-xl shadow-rose-100/70">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#da4d73]">Analiticas</p>
-          <h3 className="mt-2 font-serif text-4xl font-bold text-stone-950">Rendimiento del salon</h3>
+          <p className="text-xs font-bold uppercase tracking-[0.35em] text-[#9f6f79]">Analiticas</p>
+          <h3 className="mt-2 font-serif text-4xl font-bold text-[#2d2522]">Rendimiento del salon</h3>
           <p className="mt-2 text-sm text-stone-500">Ingresos, metodos de pago, agenda y tickets con detalle operativo.</p>
         </div>
         <div className="rounded-2xl border border-rose-100 bg-white/80 px-4 py-3 text-right shadow-sm backdrop-blur">
           <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">Ticket medio</p>
-          <p className="font-serif text-3xl font-bold text-[#da4d73]">{eur(ticketAverage)}</p>
+          <p className="font-serif text-3xl font-bold text-[#9f6f79]">{eur(ticketAverage)}</p>
         </div>
       </div>
     </section>
 
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <InsightMetric icon={<CreditCard className="h-5 w-5" />} label="Total POS" value={eur(total)} sub={`${sales.length} transacciones`} tone="rose" />
-      <InsightMetric icon={<BarChart3 className="h-5 w-5" />} label="Tarjeta" value={eur(card)} sub={`${Math.round((card / Math.max(total, 1)) * 100)}% del total`} tone="emerald" />
+      <InsightMetric icon={<BarChart3 className="h-5 w-5" />} label="Tarjeta" value={eur(card)} sub={`${Math.round((card / Math.max(total, 1)) * 100)}% del total`} tone="rose" />
       <InsightMetric icon={<ShoppingCart className="h-5 w-5" />} label="Cash" value={eur(cash)} sub={`${Math.round((cash / Math.max(total, 1)) * 100)}% del total`} tone="amber" />
       <InsightMetric icon={<Activity className="h-5 w-5" />} label="Agenda" value={`${confirmed}/${appointments.length}`} sub={`${noShows} no-show`} tone="stone" />
     </section>
@@ -1603,10 +1608,9 @@ function Rows({ data }: { data: Record<string, number> }) {
   return <div className="space-y-2">{Object.entries(data).sort((a,b) => b[1] - a[1]).map(([label, value]) => <div key={label} className="flex justify-between rounded-xl bg-rose-50/40 p-3 text-sm"><span>{label}</span><b>{eur(value)}</b></div>)}</div>;
 }
 
-function InsightMetric({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub: string; tone: 'rose' | 'emerald' | 'amber' | 'stone' }) {
+function InsightMetric({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub: string; tone: 'rose' | 'amber' | 'stone' }) {
   const toneClass = {
-    rose: 'from-rose-50 to-white text-[#da4d73]',
-    emerald: 'from-emerald-50 to-white text-emerald-700',
+    rose: 'from-rose-50 to-white text-[#9f6f79]',
     amber: 'from-amber-50 to-white text-amber-700',
     stone: 'from-stone-100 to-white text-stone-800'
   }[tone];
@@ -1615,8 +1619,8 @@ function InsightMetric({ icon, label, value, sub, tone }: { icon: React.ReactNod
       {icon}
     </div>
     <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">{label}</p>
-    <p className="mt-1 font-serif text-3xl font-bold text-stone-950">{value}</p>
-    <p className="mt-2 flex items-center gap-1 text-xs font-bold text-stone-500"><TrendingUp className="h-3.5 w-3.5 text-emerald-600" />{sub}</p>
+    <p className="mt-1 font-serif text-3xl font-bold text-[#2d2522]">{value}</p>
+    <p className="mt-2 flex items-center gap-1 text-xs font-bold text-stone-500"><TrendingUp className="h-3.5 w-3.5 text-[#9f6f79]" />{sub}</p>
   </div>;
 }
 
@@ -1635,7 +1639,7 @@ function RevenueChartPanel({ salesByDay }: { salesByDay: Record<string, PosSale[
         return <div key={row.day} className="flex min-w-0 flex-1 flex-col items-center gap-2">
           <div className="flex h-56 w-full items-end">
             <div
-              className="w-full rounded-t-2xl bg-gradient-to-t from-[#da4d73] to-rose-300 shadow-lg shadow-rose-200 transition-all duration-700 ease-out"
+              className="w-full rounded-t-2xl bg-gradient-to-t from-[#9f6f79] to-rose-300 shadow-lg shadow-rose-200 transition-all duration-700 ease-out"
               style={{ height: `${height}%` }}
               title={`${row.day}: ${eur(row.total)}`}
             />
@@ -1661,7 +1665,7 @@ function PaymentMixPanel({ card, cash, total }: { card: number; cash: number; to
         </div>
       </div>
       <div className="space-y-3">
-        <MixRow label="Tarjeta" value={eur(card)} pct={cardPct} className="bg-emerald-500" />
+        <MixRow label="Tarjeta" value={eur(card)} pct={cardPct} className="bg-amber-500" />
         <MixRow label="Cash" value={eur(cash)} pct={cashPct} className="bg-amber-500" />
       </div>
     </div>
@@ -1683,7 +1687,7 @@ function RankingRows({ data }: { data: Record<string, number> }) {
     {rows.map(([label, value], index) => (
       <div key={label} className="rounded-2xl bg-stone-50 p-3">
         <div className="mb-2 flex justify-between gap-3 text-sm"><span className="font-bold">{index + 1}. {label}</span><b>{eur(value)}</b></div>
-        <div className="h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-[#da4d73] transition-all duration-700" style={{ width: `${Math.max(8, (value / max) * 100)}%` }} /></div>
+        <div className="h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-[#9f6f79] transition-all duration-700" style={{ width: `${Math.max(8, (value / max) * 100)}%` }} /></div>
       </div>
     ))}
   </div>;
@@ -1728,7 +1732,7 @@ function DailyRevenuePanel({ salesByDay, saleItems }: { salesByDay: Record<strin
                         <p className="font-bold text-stone-900">{sale.client_name || 'Venta mostrador'}</p>
                         <p className="text-xs text-stone-500">{new Date(sale.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} · {sale.payment_method === 'card' ? 'Tarjeta' : 'Cash'}{sale.client_email ? ` · ${sale.client_email}` : ''}</p>
                       </div>
-                      <b className="text-[#da4d73]">{eur(sale.total_cents / 100)}</b>
+                      <b className="text-[#9f6f79]">{eur(sale.total_cents / 100)}</b>
                     </div>
                     <div className="mt-3 grid gap-2 md:grid-cols-2">
                       {items.length === 0 && <p className="rounded-xl bg-stone-50 px-3 py-2 text-xs text-stone-500">Sin lineas de ticket guardadas.</p>}
@@ -1751,11 +1755,11 @@ function DailyRevenuePanel({ salesByDay, saleItems }: { salesByDay: Record<strin
 }
 
 function StaffView({ staff, editingStaff, setEditingStaff, saveStaff, removeStaff }: { staff: AdminStaff[]; editingStaff: AdminStaff; setEditingStaff: React.Dispatch<React.SetStateAction<AdminStaff>>; saveStaff: () => Promise<void>; removeStaff: (id?: string) => Promise<void> }) {
-  return <Panel title="Peluqueros y accesos"><div className="mb-5 grid gap-3 md:grid-cols-3"><Field label="Nombre" value={editingStaff.name} onChange={v => setEditingStaff(s => ({ ...s, name: v }))} /><Field label="Email acceso" value={editingStaff.email} onChange={v => setEditingStaff(s => ({ ...s, email: v }))} /><Field label="Password" type="password" value={editingStaff.password || ''} onChange={v => setEditingStaff(s => ({ ...s, password: v }))} /><Field label="Rol" value={editingStaff.role} onChange={v => setEditingStaff(s => ({ ...s, role: v }))} /><Field label="PIN tactil" value={editingStaff.pin || ''} onChange={v => setEditingStaff(s => ({ ...s, pin: v }))} /><label className="flex items-end gap-2 text-xs font-bold"><input type="checkbox" checked={editingStaff.is_admin === true} onChange={e => setEditingStaff(s => ({ ...s, is_admin: e.target.checked }))} /> Admin</label></div><button onClick={saveStaff} className="mb-5 rounded-full bg-[#da4d73] px-5 py-2 text-xs font-bold uppercase text-white">Guardar peluquero</button><div className="grid gap-3 md:grid-cols-2">{staff.map(s => <div key={s.id} className="rounded-xl border border-rose-100 p-4"><p className="font-bold">{s.name}</p><p className="text-xs text-stone-500">{s.email} · {s.role} {s.is_admin ? '· Admin' : ''}</p><div className="mt-3 flex gap-2"><button onClick={() => setEditingStaff(s)} className="rounded-lg border border-rose-100 px-3 py-1 text-xs font-bold">Editar</button><button onClick={() => removeStaff(s.id)} className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">Desactivar</button></div></div>)}</div></Panel>;
+  return <Panel title="Peluqueros y accesos"><div className="mb-5 grid gap-3 md:grid-cols-3"><Field label="Nombre" value={editingStaff.name} onChange={v => setEditingStaff(s => ({ ...s, name: v }))} /><Field label="Email acceso" value={editingStaff.email} onChange={v => setEditingStaff(s => ({ ...s, email: v }))} /><Field label="Password" type="password" value={editingStaff.password || ''} onChange={v => setEditingStaff(s => ({ ...s, password: v }))} /><Field label="Rol" value={editingStaff.role} onChange={v => setEditingStaff(s => ({ ...s, role: v }))} /><Field label="PIN tactil" value={editingStaff.pin || ''} onChange={v => setEditingStaff(s => ({ ...s, pin: v }))} /><label className="flex items-end gap-2 text-xs font-bold"><input type="checkbox" checked={editingStaff.is_admin === true} onChange={e => setEditingStaff(s => ({ ...s, is_admin: e.target.checked }))} /> Admin</label></div><button onClick={saveStaff} className="mb-5 rounded-full bg-[#9f6f79] px-5 py-2 text-xs font-bold uppercase text-white">Guardar peluquero</button><div className="grid gap-3 md:grid-cols-2">{staff.map(s => <div key={s.id} className="rounded-xl border border-rose-100 p-4"><p className="font-bold">{s.name}</p><p className="text-xs text-stone-500">{s.email} · {s.role} {s.is_admin ? '· Admin' : ''}</p><div className="mt-3 flex gap-2"><button onClick={() => setEditingStaff(s)} className="rounded-lg border border-rose-100 px-3 py-1 text-xs font-bold">Editar</button><button onClick={() => removeStaff(s.id)} className="rounded-lg bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">Desactivar</button></div></div>)}</div></Panel>;
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-[1.75rem] border border-white/80 bg-white/90 p-5 shadow-sm backdrop-blur-xl"><h3 className="mb-5 font-serif text-2xl font-bold text-stone-950">{title}</h3>{children}</section>;
+  return <section className="rounded-[1.35rem] border border-stone-950/10 bg-white p-5 shadow-[0_16px_40px_rgba(46,38,29,0.06)]"><h3 className="mb-5 font-serif text-2xl font-bold text-[#2d2522]">{title}</h3>{children}</section>;
 }
 
 

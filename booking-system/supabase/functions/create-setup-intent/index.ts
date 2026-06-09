@@ -18,6 +18,16 @@ const getNoShowFeeCents = async (supabase: ReturnType<typeof createAdminClient>,
 
 const getSalonId = async (supabase: ReturnType<typeof createAdminClient>, requested?: string) => {
   if (requested) return requested;
+  const { data: analei, error: analeiError } = await supabase
+    .from('salons')
+    .select('id')
+    .eq('is_active', true)
+    .ilike('name', '%analei%')
+    .order('created_at')
+    .limit(1)
+    .maybeSingle();
+  if (analeiError) throw analeiError;
+  if (analei?.id) return analei.id;
   const { data, error } = await supabase.from('salons').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
   if (error) throw error;
   return data?.id || '';
@@ -59,7 +69,7 @@ Deno.serve(async (req) => {
       email: body.clientEmail || undefined,
       name: body.clientName || undefined,
       metadata: {
-        source: 'peluqueria-maria-booking',
+        source: 'analei-booking',
         appointmentDate: String(body.appointmentDate || ''),
         appointmentTime: String(body.appointmentTime || ''),
         serviceId: service.id,

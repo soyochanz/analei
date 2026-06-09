@@ -97,7 +97,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     date: '2024-10-24',
     status: 'Confirmed',
     price: 135,
-    avatarColor: 'bg-rose-50 text-[#da4d73] border border-rose-100'
+    avatarColor: 'bg-rose-50 text-[#2f8f83] border border-rose-100'
   },
   {
     id: 'a2',
@@ -119,7 +119,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     date: '2024-10-24',
     status: 'Confirmed',
     price: 35,
-    avatarColor: 'bg-purple-50 text-[#a855f7] border border-purple-150'
+    avatarColor: 'bg-purple-50 text-[#c48f3a] border border-purple-150'
   },
   {
     id: 'a4',
@@ -167,7 +167,7 @@ export const INITIAL_APPOINTMENTS: Appointment[] = [
     date: '2024-10-25',
     status: 'Confirmed',
     price: 135,
-    avatarColor: 'bg-rose-50 text-[#da4d73] border border-rose-100'
+    avatarColor: 'bg-rose-50 text-[#2f8f83] border border-rose-100'
   },
   {
     id: 'a8',
@@ -225,7 +225,7 @@ export const FEATURED_PRODUCTS: Product[] = [
   {
     id: 'p3',
     name: 'Sérum Antioxidante Elasticidad Avanzada',
-    brand: 'Mary Care',
+    brand: 'Analei Care',
     description: 'Tratamiento corrector con alta concentración de Vitamina C y microesferas de Ácido Hialurónico para hidratar capas profundas y atenuar líneas de expresión.',
     price: 38.00,
     image: 'https://images.unsplash.com/photo-1608248597481-496100c8c836?q=80&w=600&auto=format&fit=crop',

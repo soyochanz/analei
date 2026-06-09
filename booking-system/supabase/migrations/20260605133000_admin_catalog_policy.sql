@@ -14,7 +14,7 @@ create table if not exists public.products (
 
 create table if not exists public.salon_settings (
   id boolean primary key default true,
-  salon_name text not null default 'Peluqueria Maria y Estetica',
+  salon_name text not null default 'Analei Beauty Studio',
   phone text,
   email text,
   address text,
@@ -73,7 +73,7 @@ to anon, authenticated
 using (true);
 
 insert into public.salon_settings (id, salon_name, email)
-values (true, 'Peluqueria Maria y Estetica', 'soporte@peluqueriamaria.com')
+values (true, 'Analei Beauty Studio', 'soporte@analei.es')
 on conflict (id) do nothing;
 
 insert into public.no_show_policy (id)
@@ -84,5 +84,5 @@ insert into public.products (name, brand, description, price_cents, image_url, t
 values
   ('PhytoRx Combo Regenerador e Iluminador', 'Lotus Professional', 'Formula avanzada para restaurar luminosidad y purificar la dermis.', 4999, 'https://images.unsplash.com/photo-1601049541289-9b1b7bbbfe19?q=80&w=600&auto=format&fit=crop', 'RECOMENDADO', 12),
   ('Limpiador Botanico Hidratante de Rosa Organica', 'Aura & Bloom', 'Espuma facial extrasuave enriquecida con rosa organica.', 2450, 'https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=600&auto=format&fit=crop', 'FORMULA ECO', 18),
-  ('Serum Antioxidante Elasticidad Avanzada', 'Mary Care', 'Tratamiento corrector con Vitamina C y acido hialuronico.', 3800, 'https://images.unsplash.com/photo-1608248597481-496100c8c836?q=80&w=600&auto=format&fit=crop', 'ALTA COSMETICA', 9)
+  ('Serum Antioxidante Elasticidad Avanzada', 'Analei Care', 'Tratamiento corrector con Vitamina C y acido hialuronico.', 3800, 'https://images.unsplash.com/photo-1608248597481-496100c8c836?q=80&w=600&auto=format&fit=crop', 'ALTA COSMETICA', 9)
 on conflict do nothing;

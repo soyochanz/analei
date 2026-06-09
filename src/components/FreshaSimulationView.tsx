@@ -64,7 +64,7 @@ export default function FreshaSimulationView({
   // Replicating staff from the Fresha dashboard image
   const staffMembers = [
     { id: 'john', name: 'John', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=150&auto=format&fit=crop' },
-    { id: 'maria', name: 'Maria', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=150&auto=format&fit=crop' },
+    { id: 'maria', name: 'Analei', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=150&auto=format&fit=crop' },
     { id: 'wendy', name: 'Wendy', image: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=150&auto=format&fit=crop' },
     { id: 'amy', name: 'Amy', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=150&auto=format&fit=crop' },
     { id: 'michael', name: 'Michael', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=150&auto=format&fit=crop' }
@@ -273,7 +273,7 @@ export default function FreshaSimulationView({
     <div className="min-h-screen bg-[#f7fafc] text-stone-800 antialiased font-sans relative flex flex-col justify-between">
       
       {/* Top Banner indicating prototype */}
-      <div className="bg-gradient-to-r from-purple-700 via-indigo-600 to-[#ec4899] text-white py-2.5 px-6 shrink-0 flex flex-wrap justify-between items-center z-20 shadow-md">
+      <div className="bg-gradient-to-r from-purple-700 via-indigo-600 to-[#6fb3a8] text-white py-2.5 px-6 shrink-0 flex flex-wrap justify-between items-center z-20 shadow-md">
         <div className="flex items-center gap-2 text-xs font-bold font-sans">
           <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase">Fresha Engine Simulation</span>
           <span>Demostración de propuesta premium con pasarela externa.</span>
@@ -355,12 +355,12 @@ export default function FreshaSimulationView({
                 onClick={() => { setActiveTab('pricing'); }}
                 className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
                   activeTab === 'pricing' 
-                    ? 'bg-pink-50 text-pink-700 border-l-4 border-[#ec4899]' 
+                    ? 'bg-pink-50 text-pink-700 border-l-4 border-[#6fb3a8]' 
                     : 'hover:bg-stone-50 text-stone-600'
                 }`}
               >
                 <span>Comisiones vs Menú Propio</span>
-                <span className="bg-[#ec4899]/10 text-[#ec4899] font-bold px-1.5 py-0.5 rounded text-[8px] uppercase">Diferencias</span>
+                <span className="bg-[#6fb3a8]/10 text-[#6fb3a8] font-bold px-1.5 py-0.5 rounded text-[8px] uppercase">Diferencias</span>
               </button>
             </nav>
           </div>
@@ -391,7 +391,7 @@ export default function FreshaSimulationView({
                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
                 <div>
                   <p className="text-[11px] font-bold text-stone-800 flex items-center gap-1">
-                    <span>Pagos en Persona (Efectivo/TPV de María)</span>
+                    <span>Pagos en Persona (Efectivo/TPV de Analei)</span>
                     <span className="bg-emerald-50 text-emerald-700 text-[8px] px-1.5 py-0.2 rounded-full font-sans font-bold uppercase tracking-wider">Gratis</span>
                   </p>
                   <p className="text-[10px] text-stone-500 leading-relaxed">
@@ -449,7 +449,7 @@ export default function FreshaSimulationView({
                         className="w-8 h-8 rounded-full border border-white/20" 
                         referrerPolicy="no-referrer"
                       />
-                      <span className="text-xs text-white font-bold hidden sm:inline">María Admin</span>
+                      <span className="text-xs text-white font-bold hidden sm:inline">Analei Admin</span>
                     </div>
                   </div>
                 </header>
@@ -674,7 +674,7 @@ export default function FreshaSimulationView({
                         Fianza Contra Cancelaciones Tarde
                       </h3>
                       <p className="text-xs text-stone-500 mt-1">
-                        Protege el horario del salón de María de forma robusta con la pasarela de Fresha.
+                        Protege el horario del salón de Analei de forma robusta con la pasarela de Fresha.
                       </p>
                     </div>
                     <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600 border border-orange-100">
@@ -696,16 +696,16 @@ export default function FreshaSimulationView({
                         <div>
                           <div className="flex justify-between items-center text-[10px] text-stone-400 pt-2 mb-4">
                             <span>12:35</span>
-                            <span className="text-[#da4d73] font-bold">fresha.com</span>
+                            <span className="text-[#2f8f83] font-bold">fresha.com</span>
                           </div>
 
                           <span className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center mb-3">
                             <Sparkles className="w-5 h-5 text-white" />
                           </span>
 
-                          <h4 className="font-serif text-lg font-bold">Peluquería María</h4>
+                          <h4 className="font-serif text-lg font-bold">Peluquería Analei</h4>
                           <p className="text-[10px] text-stone-300 mt-1">
-                            Para confirmar tu cita de <b>Balayage & Cut</b> con María, es necesario añadir un método de pago de garantía.
+                            Para confirmar tu cita de <b>Balayage & Cut</b> con Analei, es necesario añadir un método de pago de garantía.
                           </p>
 
                           <div className="bg-white/5 rounded-xl p-3 border border-white/10 mt-4 text-xs space-y-2">
@@ -907,16 +907,16 @@ export default function FreshaSimulationView({
                   <div className="flex justify-between items-center mb-6">
                     <div>
                       <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-3 py-1 rounded-full border border-rose-100 uppercase tracking-widest">
-                        Análisis Financiero María
+                        Análisis Financiero Analei
                       </span>
                       <h3 className="font-serif text-3xl font-bold text-stone-900 mt-2">
                         Menú Propio vs Plataforma Fresha
                       </h3>
                       <p className="text-xs text-stone-500 mt-1">
-                        Ayuda a María a tomar la mejor decisión para su peluquería en base al volumen del negocio.
+                        Ayuda a Analei a tomar la mejor decisión para su peluquería en base al volumen del negocio.
                       </p>
                     </div>
-                    <div className="w-12 h-12 bg-pink-50 rounded-2xl flex items-center justify-center text-[#da4d73] border border-pink-100">
+                    <div className="w-12 h-12 bg-pink-50 rounded-2xl flex items-center justify-center text-[#2f8f83] border border-pink-100">
                       <Coins className="w-6 h-6 text-pink-600" />
                     </div>
                   </div>
@@ -927,7 +927,7 @@ export default function FreshaSimulationView({
                     <div className="bg-stone-50 border border-stone-150 rounded-2.5xl p-6 flex flex-col justify-between">
                       <div>
                         <h4 className="font-serif text-lg font-bold text-stone-900 mb-3 border-b pb-2 flex justify-between items-center">
-                          <span>Menú Propio María</span>
+                          <span>Menú Propio Analei</span>
                           <span className="text-emerald-600 text-xs">€0 Comisiones</span>
                         </h4>
                         

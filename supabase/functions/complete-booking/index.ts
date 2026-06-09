@@ -5,6 +5,16 @@ import { sendAppointmentWhatsApp } from '../_shared/whatsapp.ts';
 
 const getSalonId = async (supabase: ReturnType<typeof createAdminClient>, requested?: string) => {
   if (requested) return requested;
+  const { data: analei, error: analeiError } = await supabase
+    .from('salons')
+    .select('id')
+    .eq('is_active', true)
+    .ilike('name', '%analei%')
+    .order('created_at')
+    .limit(1)
+    .maybeSingle();
+  if (analeiError) throw analeiError;
+  if (analei?.id) return analei.id;
   const { data, error } = await supabase.from('salons').select('id').eq('is_active', true).order('created_at').limit(1).maybeSingle();
   if (error) throw error;
   return data?.id || '';
